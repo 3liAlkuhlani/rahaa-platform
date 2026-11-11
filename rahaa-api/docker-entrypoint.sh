@@ -20,3 +20,4 @@ php artisan route:cache
 
 echo "Starting Rahaa API on port ${PORT:-8000}..."
 exec php artisan serve --host=0.0.0.0 --port="${PORT:-8000}"
+
