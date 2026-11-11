@@ -1,0 +1,252 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { getToken, getCurrentUser, getDriverPrimaryService, getDriverPortalRoute } from '../services/api';
+
+// Layouts
+import { AdminLayout } from '../components/layout/AdminLayout';
+import { PassengerLayout } from '../components/layout/PassengerLayout';
+import { DriverLayout } from '../components/layout/DriverLayout';
+
+// Splash & Auth Pages
+import { SplashScreen } from '../pages/SplashScreen';
+import { Login } from '../pages/Login';
+import { PassengerRegister } from '../pages/PassengerRegister';
+import { DriverRegister } from '../pages/DriverRegister';
+
+// Passenger Pages
+import { PassengerHome } from '../pages/PassengerHome';
+import { PassengerTaxiBooking } from '../pages/PassengerTaxiBooking';
+import { PassengerTripMap } from '../pages/PassengerTripMap';
+import { PassengerTrips } from '../pages/PassengerTrips';
+import { PassengerProfile } from '../pages/PassengerProfile';
+import { PassengerRentals } from '../pages/PassengerRentals';
+import { PassengerTrucks } from '../pages/PassengerTrucks';
+import { PassengerMotorcycles } from '../pages/PassengerMotorcycles';
+import { LocationSelectionScreen } from '../pages/LocationSelectionScreen';
+
+// Driver Dedicated Pages per Transport Mode
+import { DriverHome } from '../pages/DriverHome';
+import { DriverTaxiDashboard } from '../pages/DriverTaxiDashboard';
+import { DriverRentalDashboard } from '../pages/DriverRentalDashboard';
+import { DriverTruckDashboard } from '../pages/DriverTruckDashboard';
+import { DriverMotorcycleDashboard } from '../pages/DriverMotorcycleDashboard';
+import { ActiveTripTracking } from '../pages/ActiveTripTracking';
+import { DriverEarnings } from '../pages/DriverEarnings';
+import { DriverProfile } from '../pages/DriverProfile';
+
+// Admin Pages
+import { Dashboard } from '../pages/Dashboard';
+import { Trips } from '../pages/Trips';
+import { Drivers } from '../pages/Drivers';
+import { Users } from '../pages/Users';
+import { Analytics } from '../pages/Analytics';
+import { Settings } from '../pages/Settings';
+import { Help } from '../pages/Help';
+import { Security } from '../pages/Security';
+import { AdminTransportManagement } from '../pages/AdminTransportManagement';
+
+/**
+ * Guard for Admin Portal:
+ * Strictly blocks Passengers and Drivers from entering the Admin Dashboard.
+ */
+const AdminProtectedRoute = ({ children }) => {
+  const token = getToken();
+  const user = getCurrentUser();
+
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role === 'passenger') {
+    return <Navigate to="/passenger" replace />;
+  }
+
+  if (user.role === 'driver') {
+    return <Navigate to={getDriverPortalRoute(user)} replace />;
+  }
+
+  if (user.role !== 'admin') {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
+
+/**
+ * Guard for Passenger Portal
+ */
+const PassengerProtectedRoute = ({ children }) => {
+  const token = getToken();
+  const user = getCurrentUser();
+
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+
+  if (user.role === 'driver') {
+    return <Navigate to={getDriverPortalRoute(user)} replace />;
+  }
+
+  return children;
+};
+
+/**
+ * Guard for Driver Portal
+ */
+const DriverProtectedRoute = ({ children }) => {
+  const token = getToken();
+  const user = getCurrentUser();
+
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+
+  if (user.role === 'passenger') {
+    return <Navigate to="/passenger" replace />;
+  }
+
+  return children;
+};
+
+/**
+ * Guard ensuring each driver only accesses the dedicated page for the vehicle they own
+ */
+const DriverServiceGuard = ({ allowedService, children }) => {
+  const user = getCurrentUser();
+  const primaryService = getDriverPrimaryService(user);
+  const ownedServices = Array.isArray(user?.driver_services)
+    ? user.driver_services.map((s) => s.service_type)
+    : [];
+
+  if (primaryService !== allowedService && !ownedServices.includes(allowedService)) {
+    return <Navigate to={getDriverPortalRoute(user)} replace />;
+  }
+
+  return children;
+};
+
+export const AppRoutes = () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* ================= Splash Screen (Root Entry) ================= */}
+        <Route path="/" element={<SplashScreen />} />
+
+        {/* ================= Authentication Routes ================= */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<PassengerRegister />} />
+        <Route path="/register/passenger" element={<PassengerRegister />} />
+        <Route path="/register/driver" element={<DriverRegister />} />
+
+        {/* ================= Passenger Portal Routes ================= */}
+        <Route
+          path="/passenger"
+          element={
+            <PassengerProtectedRoute>
+              <PassengerLayout />
+            </PassengerProtectedRoute>
+          }
+        >
+          <Route index element={<PassengerHome />} />
+          <Route path="taxi" element={<PassengerTaxiBooking />} />
+          <Route path="location" element={<LocationSelectionScreen />} />
+          <Route path="rentals" element={<PassengerRentals />} />
+          <Route path="trucks" element={<PassengerTrucks />} />
+          <Route path="motorcycles" element={<PassengerMotorcycles />} />
+          <Route path="map" element={<PassengerTripMap />} />
+          <Route path="map/:tripId" element={<PassengerTripMap />} />
+          <Route path="trips" element={<PassengerTrips />} />
+          <Route path="profile" element={<PassengerProfile />} />
+        </Route>
+
+        {/* ================= Driver Portal Routes (Separated by Vehicle Type) ================= */}
+        <Route
+          path="/driver"
+          element={
+            <DriverProtectedRoute>
+              <DriverLayout />
+            </DriverProtectedRoute>
+          }
+        >
+          {/* Auto-redirect /driver to the driver's specific vehicle portal */}
+          <Route index element={<DriverHome />} />
+
+          {/* 1. Taxi Driver Dedicated Page */}
+          <Route
+            path="taxi"
+            element={
+              <DriverServiceGuard allowedService="taxi">
+                <DriverTaxiDashboard />
+              </DriverServiceGuard>
+            }
+          />
+
+          {/* 2. Car Rental Owner/Driver Dedicated Page */}
+          <Route
+            path="rental"
+            element={
+              <DriverServiceGuard allowedService="rental">
+                <DriverRentalDashboard />
+              </DriverServiceGuard>
+            }
+          />
+
+          {/* 3. Cargo Truck Driver Dedicated Page */}
+          <Route
+            path="truck"
+            element={
+              <DriverServiceGuard allowedService="truck">
+                <DriverTruckDashboard />
+              </DriverServiceGuard>
+            }
+          />
+
+          {/* 4. Motorcycle Captain Dedicated Page */}
+          <Route
+            path="motorcycle"
+            element={
+              <DriverServiceGuard allowedService="motorcycle">
+                <DriverMotorcycleDashboard />
+              </DriverServiceGuard>
+            }
+          />
+
+          <Route path="active-trip" element={<ActiveTripTracking />} />
+          <Route path="earnings" element={<DriverEarnings />} />
+          <Route path="profile" element={<DriverProfile />} />
+        </Route>
+
+        {/* ================= Independent Admin Portal (/admin) ================= */}
+        <Route
+          path="/admin"
+          element={
+            <AdminProtectedRoute>
+              <AdminLayout />
+            </AdminProtectedRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="transport" element={<AdminTransportManagement />} />
+          <Route path="trips" element={<Trips />} />
+          <Route path="drivers" element={<Drivers />} />
+          <Route path="users" element={<Users />} />
+          <Route path="analytics" element={<Analytics />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="help" element={<Help />} />
+          <Route path="security" element={<Security />} />
+        </Route>
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+};

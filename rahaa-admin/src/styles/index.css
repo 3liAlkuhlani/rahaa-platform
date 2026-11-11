@@ -1,0 +1,303 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Rahah Official Brand Visual Identity - Extracted Strictly from Rahah Logo */
+  --primary-color: #0B58A8;
+  --primary-hover: #1668BE;
+  --primary-light: #E8F2FC;
+  --primary-soft: #F2F7FD;
+  --primary-avatar: #D0E4FA;
+
+  /* Rahah Logo Signature Golden-Amber (Vehicles inside the 'R' Ribbon) */
+  --secondary-color: #EE9224;
+  --secondary-hover: #D67E16;
+  --secondary-light: #FEF5E8;
+  --secondary-soft: rgba(238, 146, 36, 0.14);
+
+  /* Accent harmonized with Rahah Logo Blue & Amber */
+  --accent-color: #1A6CC4;
+  --accent-light: #E8F2FC;
+
+  /* Rahah Logo Deep Authoritative Navy */
+  --navy-color: #0D2D56;
+  --navy-deep: #071932;
+  --background-color: #F4F8FD;
+  --surface-color: #FFFFFF;
+  --surface-elevated: #FFFFFF;
+
+  --text-primary: #0D2D56;
+  --text-secondary: #1E3A5F;
+  --text-muted: #4A6588;
+  --text-subtle: #7890AD;
+
+  --border-color: #D8E6F6;
+  --border-light: rgba(216, 230, 246, 0.8);
+
+  --success-color: #0B58A8;
+  --success-light: rgba(11, 88, 168, 0.12);
+  --warning-color: #EE9224;
+  --warning-light: rgba(238, 146, 36, 0.14);
+  --danger-color: #DC2626;
+  --danger-light: rgba(220, 38, 38, 0.12);
+
+  /* Modern High-Tech Glassmorphism & Logo Glow Shadows */
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(11, 88, 168, 0.18);
+  --shadow-sm: 0 2px 8px -2px rgba(13, 45, 86, 0.07);
+  --shadow-md: 0 8px 24px -4px rgba(13, 45, 86, 0.09), 0 3px 8px -2px rgba(11, 88, 168, 0.05);
+  --shadow-lg: 0 16px 36px -6px rgba(13, 45, 86, 0.14), 0 6px 16px -4px rgba(11, 88, 168, 0.07);
+  --shadow-xl: 0 24px 52px -8px rgba(13, 45, 86, 0.18);
+}
+
+.dark {
+  /* Rahah Official Dark Theme - Deep Logo Navy & Luminous Ribbon Blue + Golden Amber */
+  --primary-color: #2984DF;
+  --primary-hover: #3B95EE;
+  --primary-light: rgba(41, 132, 223, 0.18);
+  --primary-soft: rgba(41, 132, 223, 0.1);
+  --primary-avatar: #132C52;
+
+  --secondary-color: #EE9224;
+  --secondary-hover: #F5A623;
+  --secondary-light: rgba(238, 146, 36, 0.18);
+  --secondary-soft: rgba(238, 146, 36, 0.1);
+
+  --accent-color: #38BDF8;
+  --accent-light: rgba(56, 189, 248, 0.15);
+
+  --navy-color: #F4F8FD;
+  --navy-deep: #FFFFFF;
+  --background-color: #061326;
+  --surface-color: #0C2140;
+  --surface-elevated: #112B52;
+
+  --text-primary: #F4F8FD;
+  --text-secondary: #CFE0F5;
+  --text-muted: #8DA9CC;
+  --text-subtle: #5E7BA1;
+
+  --border-color: #193866;
+  --border-light: rgba(25, 56, 102, 0.75);
+
+  --success-color: #38BDF8;
+  --success-light: rgba(56, 189, 248, 0.16);
+  --warning-color: #EE9224;
+  --warning-light: rgba(238, 146, 36, 0.18);
+  --danger-color: #EF4444;
+  --danger-light: rgba(239, 68, 68, 0.15);
+
+  --glass-bg: rgba(12, 33, 64, 0.88);
+  --glass-border: rgba(41, 132, 223, 0.22);
+  --shadow-sm: 0 2px 8px 0 rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 36px -4px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 24px 52px -6px rgba(0, 0, 0, 0.65);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    direction: rtl;
+    text-align: right;
+  }
+
+  body {
+    background-color: var(--background-color);
+    color: var(--text-primary);
+    font-family: 'Tajawal', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cairo', sans-serif;
+    letter-spacing: -0.01em;
+    text-align: right;
+  }
+
+  input,
+  textarea,
+  select,
+  table,
+  th,
+  td {
+    direction: rtl;
+    text-align: right;
+  }
+}
+
+/* Global RTL Enforcement across all screens & components */
+[dir="ltr"],
+.dir-ltr,
+.text-left {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+/* Dark Mode Automatic Surface & Typography Harmonization */
+.dark body {
+  background-color: var(--background-color);
+  color: var(--text-primary);
+}
+
+.dark .bg-white {
+  background-color: #111C3A !important;
+  color: #F8FAFC;
+}
+
+.dark .bg-rahaa-card {
+  background-color: #111C3A !important;
+}
+
+.dark .bg-rahaa-bg {
+  background-color: #0A0F1D !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-gray-50 {
+  background-color: #0F172A !important;
+}
+
+.dark .bg-slate-100,
+.dark .bg-gray-100 {
+  background-color: #1E293B !important;
+}
+
+.dark .bg-slate-200,
+.dark .bg-gray-200 {
+  background-color: #334155 !important;
+}
+
+.dark .border-rahaa-border,
+.dark .border-slate-200,
+.dark .border-gray-200,
+.dark .border-gray-100 {
+  border-color: #1E2D5A !important;
+}
+
+.dark .text-rahaa-navy,
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-gray-900,
+.dark .text-gray-800 {
+  color: #F8FAFC !important;
+}
+
+.dark .text-rahaa-text-muted,
+.dark .text-slate-600,
+.dark .text-gray-600 {
+  color: #94A3B8 !important;
+}
+
+.dark .text-rahaa-text-subtle,
+.dark .text-slate-500,
+.dark .text-gray-500 {
+  color: #64748B !important;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #0F172A !important;
+  border-color: #1E2D5A !important;
+  color: #F8FAFC !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748B !important;
+}
+
+/* Animations & Transitions */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulseSubtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-float {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+/* Global Glass, Tech Mesh & Smart Mobility Card Utility Classes (Rahah Logo Palette) */
+.tech-mesh-bg {
+  background-image:
+    radial-gradient(at 88% 10%, rgba(11, 88, 168, 0.09) 0px, transparent 52%),
+    radial-gradient(at 12% 88%, rgba(238, 146, 36, 0.08) 0px, transparent 52%),
+    radial-gradient(circle at 24px 24px, rgba(11, 88, 168, 0.055) 1.25px, transparent 0%);
+  background-size: 100% 100%, 100% 100%, 34px 34px;
+}
+
+.dark .tech-mesh-bg {
+  background-image:
+    radial-gradient(at 88% 10%, rgba(41, 132, 223, 0.14) 0px, transparent 52%),
+    radial-gradient(at 12% 88%, rgba(238, 146, 36, 0.1) 0px, transparent 52%),
+    radial-gradient(circle at 24px 24px, rgba(41, 132, 223, 0.08) 1.25px, transparent 0%);
+  background-size: 100% 100%, 100% 100%, 34px 34px;
+}
+
+.rahaa-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-light);
+}
+
+.rahaa-card-hover {
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rahaa-card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(11, 88, 168, 0.3);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--primary-soft);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
