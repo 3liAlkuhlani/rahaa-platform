@@ -94,8 +94,9 @@ export const RenterVerificationModal = ({ isOpen, onClose, onVerified }) => {
   const isUnderReview = verification?.status === 'under_review';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-tajawal animate-fadeIn" dir="rtl">
-      <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-rahaa-xl border border-rahaa-border max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-xs font-tajawal animate-fadeIn" dir="rtl">
+      <div className="min-h-full flex items-start sm:items-center justify-center p-3 sm:p-4 pt-4 pb-24 sm:py-6">
+      <div className="bg-white rounded-3xl max-w-xl w-full p-5 sm:p-7 shadow-rahaa-xl border border-rahaa-border">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-rahaa-border mb-4">
           <div className="flex items-center gap-2.5">
@@ -337,6 +338,7 @@ export const RenterVerificationModal = ({ isOpen, onClose, onVerified }) => {
             </div>
           </form>
         )}
+      </div>
       </div>
     </div>
   );

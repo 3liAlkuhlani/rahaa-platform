@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import {
@@ -37,6 +37,9 @@ export const PassengerRentals = () => {
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
+  const [renterVerification, setRenterVerification] = useState(null);
+  const [loadingVerification, setLoadingVerification] = useState(false);
+  const bookingOverlayRef = useRef(null);
 
   // Workflow current step
   // 1: اختيار السيارة, 2: تحديد الموقع, 3: مدة التأجير والضمان, 4: توثيق الهوية, 5: الحجز والتنفيذ
@@ -81,9 +84,31 @@ export const PassengerRentals = () => {
     }
   };
 
+  const fetchVerificationStatus = async () => {
+    try {
+      setLoadingVerification(true);
+      const res = await api.getRenterVerification();
+      setRenterVerification(res.verification || null);
+    } catch {
+      setRenterVerification(null);
+    } finally {
+      setLoadingVerification(false);
+    }
+  };
+
   useEffect(() => {
     fetchRentals();
   }, [categoryFilter, modeFilter, searchMake]);
+
+  useEffect(() => {
+    fetchVerificationStatus();
+  }, []);
+
+  useEffect(() => {
+    if (isBookingModalOpen && bookingOverlayRef.current) {
+      bookingOverlayRef.current.scrollTop = 0;
+    }
+  }, [isBookingModalOpen]);
 
   const handleSelectCarForLocation = (v) => {
     setSelectedVehicle(v);
@@ -103,6 +128,7 @@ export const PassengerRentals = () => {
     setBookingMessage(null);
     setBookingError(null);
     setIsBookingModalOpen(true);
+    fetchVerificationStatus();
   };
 
   // Calculate rental cost
@@ -407,27 +433,33 @@ export const PassengerRentals = () => {
         </div>
       )}
 
-      {/* 5. Booking Modal Dialog */}
+      {/* 5. Booking Modal Dialog (Top-aligned, clean structured layout) */}
       {isBookingModalOpen && selectedVehicle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-rahaa-xl border border-rahaa-border max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-rahaa-border mb-4">
-              <div>
-                <h3 className="font-cairo font-bold text-lg text-rahaa-navy">
-                  حجز سيارة: {selectedVehicle.make} {selectedVehicle.model}
-                </h3>
-                <span className="text-xs text-rahaa-text-subtle">
-                  أدخل تفاصيل التواريخ ونمط الاستلام
-                </span>
+        <div
+          ref={bookingOverlayRef}
+          className="fixed inset-0 z-[60] overflow-y-auto bg-slate-900/60 backdrop-blur-xs animate-fadeIn"
+        >
+          <div className="min-h-full flex items-start justify-center p-3 sm:p-6 pt-3 pb-24 sm:py-8">
+            <div className="bg-white rounded-3xl max-w-xl w-full shadow-rahaa-xl border border-rahaa-border overflow-hidden">
+              <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm flex items-center justify-between px-5 py-4 border-b border-rahaa-border">
+                <div>
+                  <h3 className="font-cairo font-bold text-base sm:text-lg text-rahaa-navy">
+                    حجز سيارة: {selectedVehicle.make} {selectedVehicle.model}
+                  </h3>
+                  <span className="text-xs text-rahaa-text-subtle">
+                    أكمل التفاصيل بالترتيب لتأكيد طلب الحجز والتوثيق
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsBookingModalOpen(false)}
+                  className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold shrink-0"
+                  aria-label="إغلاق نافذة الحجز"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsBookingModalOpen(false)}
-                className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center font-bold"
-              >
-                ✕
-              </button>
-            </div>
+              <div className="p-5 sm:p-6">
 
             {bookingMessage && (
               <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold mb-4 flex items-center gap-2">
@@ -562,6 +594,71 @@ export const PassengerRentals = () => {
                 </div>
               </div>
 
+              {/* Renter Identity Verification Section (توثيق الراكب) */}
+              <div className={`rounded-2xl p-4 border transition-colors ${
+                renterVerification?.status === 'approved'
+                  ? 'bg-emerald-50/70 border-emerald-200'
+                  : renterVerification?.status === 'under_review'
+                  ? 'bg-amber-50/70 border-amber-200'
+                  : 'bg-slate-50 border-rahaa-border'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      renterVerification?.status === 'approved'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      <UserCheck className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-cairo font-bold text-xs sm:text-sm text-rahaa-navy">
+                          توثيق هوية الراكب ورخصة القيادة
+                        </span>
+                        {loadingVerification ? (
+                          <span className="text-[11px] font-bold text-slate-500">جاري التحقق...</span>
+                        ) : renterVerification?.status === 'approved' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                            موثق ومعتمد ✓
+                          </span>
+                        ) : renterVerification?.status === 'under_review' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+                            قيد المراجعة
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">
+                            {rentalMode === 'self_drive' ? 'مطلوب للقيادة الذاتية' : 'اختياري مع سائق'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-rahaa-text-subtle leading-relaxed">
+                        {renterVerification?.status === 'approved'
+                          ? 'تم اعتماد بيانات الهوية ورخصة القيادة الخاصة بك، يمكنك إتمام الحجز مباشرة.'
+                          : renterVerification?.status === 'under_review'
+                          ? 'تم رفع وثائقك وهي الآن قيد التدقيق الإداري؛ يمكنك استعراضها أو تحديثها.'
+                          : 'أرفق صورة الهوية ورخصة القيادة والصورة الشخصية لتوثيق الراكب وإتمام الحجز.'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsVerificationModalOpen(true)}
+                    className={`h-9 px-3.5 rounded-xl font-cairo font-bold text-xs shrink-0 transition-colors ${
+                      renterVerification?.status === 'approved'
+                        ? 'bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100/60'
+                        : 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
+                    }`}
+                  >
+                    {renterVerification?.status === 'approved'
+                      ? 'عرض حالة التوثيق'
+                      : renterVerification?.status === 'under_review'
+                      ? 'مراجعة الوثائق'
+                      : 'توثيق الراكب الآن'}
+                  </button>
+                </div>
+              </div>
+
               {/* Rental Guarantee Section Integration */}
               <RentalGuaranteeCard vehicle={selectedVehicle} />
 
@@ -585,6 +682,8 @@ export const PassengerRentals = () => {
                 </button>
               </div>
             </form>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -593,7 +692,9 @@ export const PassengerRentals = () => {
       <RenterVerificationModal
         isOpen={isVerificationModalOpen}
         onClose={() => setIsVerificationModalOpen(false)}
-        onVerified={() => {
+        onVerified={(updatedVerification) => {
+          setRenterVerification(updatedVerification || null);
+          fetchVerificationStatus();
           setIsVerificationModalOpen(false);
           setWorkflowStep(3);
         }}
