@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\PassengerProfile;
 use App\Models\DriverProfile;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
@@ -187,23 +188,47 @@ class AuthController extends Controller
         ]);
     }
 
+    private function normalizeArabicDigits(?string $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+        $arabic = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+        $western = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+        return str_replace($arabic, $western, $value);
+    }
+
     /**
      * Register Passenger
      */
     public function registerPassenger(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:100',
-            'phone' => 'required|string|unique:users,phone|min:9|max:15',
+        $cleanName = trim((string) $request->input('name', ''));
+        $cleanPhone = preg_replace('/\D/', '', $this->normalizeArabicDigits((string) $request->input('phone', '')));
+        $cleanEmail = $request->filled('email') ? trim((string) $request->input('email')) : null;
+
+        $input = array_merge($request->all(), [
+            'name' => $cleanName,
+            'phone' => $cleanPhone,
+            'email' => $cleanEmail,
+        ]);
+
+        $validator = Validator::make($input, [
+            'name' => 'required|string|min:3|max:100',
+            'phone' => ['required', 'string', 'regex:/^7[0-9]{8}$/', 'unique:users,phone'],
             'password' => 'required|string|min:6|confirmed',
             'email' => 'nullable|email|unique:users,email',
         ], [
-            'name.required' => 'الاسم الكامل مطلوب',
-            'phone.required' => 'رقم الهاتف مطلوب',
+            'name.required' => 'يرجى إدخال الاسم الكامل',
+            'name.min' => 'يجب أن يتكون الاسم من 3 أحرف على الأقل',
+            'phone.required' => 'يرجى إدخال رقم الهاتف',
+            'phone.regex' => 'يرجى إدخال رقم هاتف صحيح مكون من 9 أرقام ويبدأ بالرقم 7',
             'phone.unique' => 'رقم الهاتف هذا مسجل بالفعل مسبقاً',
-            'password.required' => 'كلمة المرور مطلوبة',
+            'email.email' => 'يرجى إدخال البريد الإلكتروني بشكل صحيح',
+            'email.unique' => 'البريد الإلكتروني هذا مسجل بالفعل مسبقاً',
+            'password.required' => 'يرجى إنشاء كلمة المرور',
             'password.min' => 'يجب ألا تقل كلمة المرور عن 6 خانات',
-            'password.confirmed' => 'تأكيد كلمة المرور غير متطابق',
+            'password.confirmed' => 'كلمة المرور وتأكيدها غير متطابقتين',
         ]);
 
         if ($validator->fails()) {
@@ -214,22 +239,26 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $user = User::create([
-            'name' => $request->name,
-            'phone' => preg_replace('/\D/', '', $request->phone),
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => 'passenger',
-            'status' => 'active',
-            'phone_verified_at' => now(),
-        ]);
+        [$user, $profile] = DB::transaction(function () use ($cleanName, $cleanPhone, $cleanEmail, $request) {
+            $user = User::create([
+                'name' => $cleanName,
+                'phone' => $cleanPhone,
+                'email' => $cleanEmail,
+                'password' => Hash::make($request->password),
+                'role' => 'passenger',
+                'status' => 'active',
+                'phone_verified_at' => now(),
+            ]);
 
-        $profile = PassengerProfile::create([
-            'user_id' => $user->id,
-            'wallet_balance' => 0.00,
-            'total_trips' => 0,
-            'rating' => 5.00,
-        ]);
+            $profile = PassengerProfile::create([
+                'user_id' => $user->id,
+                'wallet_balance' => 0.00,
+                'total_trips' => 0,
+                'rating' => 5.00,
+            ]);
+
+            return [$user, $profile];
+        });
 
         $token = $user->createToken('passenger-access-token', ['passenger'])->plainTextToken;
 
@@ -248,31 +277,68 @@ class AuthController extends Controller
     }
 
     /**
-     * Register Driver with file uploads
+     * Register Driver with mandatory vehicle fields & file uploads
      */
     public function registerDriver(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:100',
-            'phone' => 'required|string|unique:users,phone|min:9|max:15',
+        $cleanName = trim((string) $request->input('name', ''));
+        $cleanPhone = preg_replace('/\D/', '', $this->normalizeArabicDigits((string) $request->input('phone', '')));
+        $cleanEmail = $request->filled('email') ? trim((string) $request->input('email')) : null;
+        $cleanPlate = trim((string) $request->input('vehicle_plate', ''));
+        $cleanModel = trim((string) $request->input('vehicle_model', ''));
+
+        $input = array_merge($request->all(), [
+            'name' => $cleanName,
+            'phone' => $cleanPhone,
+            'email' => $cleanEmail,
+            'vehicle_plate' => $cleanPlate,
+            'vehicle_model' => $cleanModel,
+        ]);
+
+        $validator = Validator::make($input, [
+            'name' => 'required|string|min:3|max:100',
+            'phone' => ['required', 'string', 'regex:/^7[0-9]{8}$/', 'unique:users,phone'],
             'password' => 'required|string|min:6|confirmed',
             'email' => 'nullable|email|unique:users,email',
-            'vehicle_plate' => 'required|string|max:20',
-            'vehicle_model' => 'required|string|max:50',
+            'service_type' => 'required|string|in:taxi,rental,truck,motorcycle',
+            'vehicle_plate' => 'required|string|min:2|max:20',
+            'vehicle_model' => 'required|string|min:2|max:50',
             'vehicle_type' => 'nullable|string|in:economy,comfort,vip,family',
             'vehicle_color' => 'nullable|string|max:30',
-            'license_photo' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:5120',
-            'selfie_photo' => 'nullable|file|mimes:jpeg,png,jpg|max:5120',
-            'car_front_photo' => 'nullable|file|mimes:jpeg,png,jpg|max:5120',
-            'car_back_photo' => 'nullable|file|mimes:jpeg,png,jpg|max:5120',
+            'max_payload_kg' => 'required_if:service_type,truck|nullable|numeric|min:100',
+            'daily_rate' => 'required_if:service_type,rental|nullable|numeric|min:1000',
+            'license_photo' => 'required|file|mimes:jpeg,png,jpg,webp,pdf|max:5120',
+            'selfie_photo' => 'required|file|mimes:jpeg,png,jpg,webp|max:5120',
+            'car_front_photo' => 'required|file|mimes:jpeg,png,jpg,webp|max:5120',
+            'car_back_photo' => 'nullable|file|mimes:jpeg,png,jpg,webp|max:5120',
         ], [
-            'name.required' => 'الاسم الكامل مطلوب',
-            'phone.required' => 'رقم الهاتف مطلوب',
+            'name.required' => 'يرجى إدخال اسم السائق الكامل',
+            'name.min' => 'يجب أن يتكون الاسم من 3 أحرف على الأقل',
+            'phone.required' => 'يرجى إدخال رقم الهاتف',
+            'phone.regex' => 'يرجى إدخال رقم هاتف صحيح مكون من 9 أرقام ويبدأ بالرقم 7',
             'phone.unique' => 'رقم الهاتف مسجل بالفعل لسائق أو راكب آخر',
-            'password.required' => 'كلمة المرور مطلوبة',
-            'password.confirmed' => 'تأكيد كلمة المرور غير متطابق',
-            'vehicle_plate.required' => 'رقم لوحة المركبة مطلوب',
-            'vehicle_model.required' => 'طراز المركبة وسنة الصنع مطلوبان',
+            'email.email' => 'يرجى إدخال البريد الإلكتروني بشكل صحيح',
+            'email.unique' => 'البريد الإلكتروني مسجل بالفعل لحساب آخر',
+            'password.required' => 'يرجى إنشاء كلمة المرور',
+            'password.min' => 'يجب ألا تقل كلمة المرور عن 6 خانات',
+            'password.confirmed' => 'كلمة المرور وتأكيدها غير متطابقتين',
+            'service_type.required' => 'يرجى اختيار نوع الخدمة / وسيلة النقل',
+            'service_type.in' => 'نوع الخدمة المختار غير صالح',
+            'vehicle_plate.required' => 'يرجى إدخال رقم لوحة المركبة',
+            'vehicle_plate.min' => 'رقم لوحة المركبة قصير جداً',
+            'vehicle_model.required' => 'يرجى إدخال طراز المركبة وسنة الصنع',
+            'vehicle_model.min' => 'طراز المركبة قصير جداً',
+            'max_payload_kg.required_if' => 'يرجى تحديد الحمولة القصوى للشاحنة بالكيلوجرام',
+            'daily_rate.required_if' => 'يرجى تحديد السعر اليومي لتأجير السيارة',
+            'license_photo.required' => 'يرجى إرفاق صورة رخصة القيادة',
+            'license_photo.mimes' => 'صيغة ملف رخصة القيادة غير مدعومة',
+            'license_photo.max' => 'حجم ملف رخصة القيادة يتجاوز الحد الأقصى (5MB)',
+            'selfie_photo.required' => 'يرجى إرفاق صورة سيلفي واضحة للوجه',
+            'selfie_photo.mimes' => 'صيغة صورة السيلفي غير مدعومة',
+            'selfie_photo.max' => 'حجم صورة السيلفي يتجاوز الحد الأقصى (5MB)',
+            'car_front_photo.required' => 'يرجى إرفاق صورة واحدة على الأقل للمركبة',
+            'car_front_photo.mimes' => 'صيغة صورة المركبة غير مدعومة',
+            'car_front_photo.max' => 'حجم صورة المركبة يتجاوز الحد الأقصى (5MB)',
         ]);
 
         if ($validator->fails()) {
@@ -284,75 +350,77 @@ class AuthController extends Controller
         }
 
         // Store files safely in storage/app/public/driver_docs
-        $licensePath = null;
-        if ($request->hasFile('license_photo')) {
-            $licensePath = $request->file('license_photo')->store('driver_docs', 'public');
-        }
+        $licensePath = $request->file('license_photo')->store('driver_docs', 'public');
+        $selfiePath = $request->file('selfie_photo')->store('driver_docs', 'public');
+        $carFrontPath = $request->file('car_front_photo')->store('driver_docs', 'public');
+        $carBackPath = $request->hasFile('car_back_photo')
+            ? $request->file('car_back_photo')->store('driver_docs', 'public')
+            : null;
 
-        $selfiePath = null;
-        if ($request->hasFile('selfie_photo')) {
-            $selfiePath = $request->file('selfie_photo')->store('driver_docs', 'public');
-        }
+        $chosenService = $input['service_type'];
 
-        $carFrontPath = null;
-        if ($request->hasFile('car_front_photo')) {
-            $carFrontPath = $request->file('car_front_photo')->store('driver_docs', 'public');
-        }
+        [$user, $profile] = DB::transaction(function () use (
+            $cleanName,
+            $cleanPhone,
+            $cleanEmail,
+            $cleanPlate,
+            $cleanModel,
+            $licensePath,
+            $selfiePath,
+            $carFrontPath,
+            $carBackPath,
+            $chosenService,
+            $request
+        ) {
+            $user = User::create([
+                'name' => $cleanName,
+                'phone' => $cleanPhone,
+                'email' => $cleanEmail,
+                'password' => Hash::make($request->password),
+                'role' => 'driver',
+                'status' => 'pending', // Pending Admin approval
+                'phone_verified_at' => now(),
+            ]);
 
-        $carBackPath = null;
-        if ($request->hasFile('car_back_photo')) {
-            $carBackPath = $request->file('car_back_photo')->store('driver_docs', 'public');
-        }
+            $profile = DriverProfile::create([
+                'user_id' => $user->id,
+                'vehicle_type' => $request->input('vehicle_type', 'comfort'),
+                'vehicle_plate' => $cleanPlate,
+                'vehicle_model' => $cleanModel,
+                'vehicle_color' => $request->vehicle_color,
+                'license_photo' => $licensePath,
+                'selfie_photo' => $selfiePath,
+                'car_front_photo' => $carFrontPath,
+                'car_back_photo' => $carBackPath,
+                'status' => 'pending',
+                'rating' => 5.00,
+                'total_trips' => 0,
+                'wallet_balance' => 0.00,
+            ]);
 
-        // Create user with status 'pending' awaiting admin review
-        $user = User::create([
-            'name' => $request->name,
-            'phone' => preg_replace('/\D/', '', $request->phone),
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => 'driver',
-            'status' => 'pending', // Pending Admin approval
-            'phone_verified_at' => now(),
-        ]);
+            \App\Models\DriverService::create([
+                'user_id' => $user->id,
+                'service_type' => $chosenService,
+                'status' => 'pending',
+            ]);
 
-        $profile = DriverProfile::create([
-            'user_id' => $user->id,
-            'vehicle_type' => $request->input('vehicle_type', 'comfort'),
-            'vehicle_plate' => $request->vehicle_plate,
-            'vehicle_model' => $request->vehicle_model,
-            'vehicle_color' => $request->vehicle_color,
-            'license_photo' => $licensePath,
-            'selfie_photo' => $selfiePath,
-            'car_front_photo' => $carFrontPath,
-            'car_back_photo' => $carBackPath,
-            'status' => 'pending',
-            'rating' => 5.00,
-            'total_trips' => 0,
-            'wallet_balance' => 0.00,
-        ]);
+            \App\Models\Vehicle::create([
+                'owner_id' => $user->id,
+                'service_type' => $chosenService,
+                'make' => explode(' ', $cleanModel)[0] ?: 'تويوتا',
+                'model' => $cleanModel,
+                'year' => (int) $request->input('vehicle_year', 2022),
+                'color' => $request->vehicle_color ?? 'أبيض',
+                'plate_number' => $cleanPlate,
+                'category' => $request->input('category', 'sedan'),
+                'max_payload_kg' => $request->input('max_payload_kg'),
+                'daily_rate' => $request->input('daily_rate'),
+                'status' => 'pending',
+                'is_available' => true,
+            ]);
 
-        // Register default requested service (e.g. taxi or selected service)
-        $chosenService = $request->input('service_type', 'taxi');
-        \App\Models\DriverService::create([
-            'user_id' => $user->id,
-            'service_type' => $chosenService,
-            'status' => 'pending',
-        ]);
-
-        // Also create a vehicle record for the multi-transport system
-        \App\Models\Vehicle::create([
-            'owner_id' => $user->id,
-            'service_type' => $chosenService,
-            'make' => explode(' ', $request->vehicle_model)[0] ?? 'تويوتا',
-            'model' => $request->vehicle_model,
-            'year' => (int) $request->input('vehicle_year', 2022),
-            'color' => $request->vehicle_color ?? 'أبيض',
-            'plate_number' => $request->vehicle_plate,
-            'category' => $request->input('category', 'sedan'),
-            'max_payload_kg' => $request->input('max_payload_kg'),
-            'status' => 'pending',
-            'is_available' => true,
-        ]);
+            return [$user, $profile];
+        });
 
         $token = $user->createToken('driver-access-token', ['driver'])->plainTextToken;
 

@@ -6,6 +6,7 @@ import {
   Car, FileCheck, Key, Truck, Bike, CheckCircle
 } from 'lucide-react';
 import { api, setToken, setCurrentUser, getDriverPortalRoute } from '../services/api';
+import { toWesternDigits } from '../utils/arabicLocalization';
 import { ThemeToggle } from '../components/common/ThemeToggle';
 
 export const DriverRegister = () => {
@@ -146,74 +147,131 @@ export const DriverRegister = () => {
     });
   };
 
-  // Validation function
+  // Single-field validation for real-time feedback
+  const validateSingleField = (field, value, comparePassword = password, service = selectedService) => {
+    if (field === 'fullName') {
+      const trimmed = String(value || '').trim();
+      if (!trimmed) return 'يرجى إدخال اسم السائق الكامل';
+      if (trimmed.length < 3) return 'يجب أن يتكون الاسم من 3 أحرف على الأقل';
+      return null;
+    }
+    if (field === 'phone') {
+      const clean = toWesternDigits(String(value || '')).replace(/\D/g, '');
+      if (!clean) return 'يرجى إدخال رقم الهاتف';
+      if (!/^7[0-9]{8}$/.test(clean)) {
+        return 'رقم الهاتف يجب أن يتكون من 9 أرقام ويبدأ بالرقم 7 في اليمن';
+      }
+      return null;
+    }
+    if (field === 'selectedService') {
+      if (!['taxi', 'rental', 'truck', 'motorcycle'].includes(value)) {
+        return 'يرجى اختيار نوع الخدمة / وسيلة النقل';
+      }
+      return null;
+    }
+    if (field === 'vehicleModel') {
+      const trimmed = String(value || '').trim();
+      if (!trimmed) return 'يرجى إدخال طراز المركبة وسنة الصنع';
+      if (trimmed.length < 2) return 'طراز المركبة قصير جداً';
+      return null;
+    }
+    if (field === 'vehiclePlate') {
+      const trimmed = String(value || '').trim();
+      if (!trimmed) return 'يرجى إدخال رقم لوحة المركبة';
+      if (trimmed.length < 2) return 'رقم لوحة المركبة قصير جداً';
+      return null;
+    }
+    if (field === 'maxPayload' && service === 'truck') {
+      const num = Number(toWesternDigits(String(value || '')));
+      if (!value || Number.isNaN(num) || num < 100) {
+        return 'يرجى إدخال الحمولة القصوى للشاحنة (100 كجم فأكثر)';
+      }
+      return null;
+    }
+    if (field === 'rentalDailyRate' && service === 'rental') {
+      const num = Number(toWesternDigits(String(value || '')));
+      if (!value || Number.isNaN(num) || num < 1000) {
+        return 'يرجى إدخال السعر اليومي الصحيح للإيجار (1000 ر.ي فأكثر)';
+      }
+      return null;
+    }
+    if (field === 'password') {
+      if (!value) return 'يرجى إنشاء كلمة مرور لحساب السائق';
+      if (value.length < 6) return 'كلمة المرور يجب أن لا تقل عن 6 خانات';
+      return null;
+    }
+    if (field === 'confirmPassword') {
+      if (!value) return 'يرجى تأكيد كلمة المرور';
+      if (value !== comparePassword) return 'كلمتا المرور غير متطابقتين';
+      return null;
+    }
+    return null;
+  };
+
+  // Full Form Validation before submit
   const validateForm = () => {
-    const newErrors = {};
+    const newErrors = {
+      fullName: validateSingleField('fullName', fullName),
+      phone: validateSingleField('phone', phone),
+      selectedService: validateSingleField('selectedService', selectedService),
+      vehicleModel: validateSingleField('vehicleModel', vehicleModel),
+      vehiclePlate: validateSingleField('vehiclePlate', vehiclePlate),
+      maxPayload: validateSingleField('maxPayload', maxPayload, password, selectedService),
+      rentalDailyRate: validateSingleField('rentalDailyRate', rentalDailyRate, password, selectedService),
+      licensePhoto: !licensePhoto ? 'يرجى إرفاق صورة رخصة القيادة للتحقق من هوية السائق' : null,
+      selfiePhoto: !selfiePhoto ? 'يرجى إرفاق صورة سيلفي واضحة للوجه لمطابقة الهوية' : null,
+      carPhotos: carPhotos.length === 0 ? 'يرجى إرفاق صورة واحدة على الأقل لمركبة العمل' : null,
+      password: validateSingleField('password', password),
+      confirmPassword: validateSingleField('confirmPassword', confirmPassword, password),
+    };
 
-    if (!fullName.trim()) {
-      newErrors.fullName = 'يرجى إدخال اسم السائق الكامل';
-    } else if (fullName.trim().length < 3) {
-      newErrors.fullName = 'يجب أن يتكون الاسم من 3 أحرف على الأقل';
+    const filtered = Object.fromEntries(Object.entries(newErrors).filter(([, v]) => Boolean(v)));
+    setErrors(filtered);
+
+    const firstKey = Object.keys(filtered)[0];
+    if (firstKey) {
+      const el = document.getElementById(`driver-${firstKey}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (typeof el.focus === 'function') el.focus();
+      }
     }
 
-    const cleanPhone = phone.trim().replace(/\s+/g, '');
-    if (!cleanPhone) {
-      newErrors.phone = 'يرجى إدخال رقم الهاتف';
-    } else if (!/^7[0-9]{8}$/.test(cleanPhone)) {
-      newErrors.phone = 'رقم الهاتف يجب أن يتكون من 9 أرقام ويبدأ بـ 7 في اليمن';
-    }
-
-    if (!licensePhoto) {
-      newErrors.licensePhoto = 'صورة رخصة القيادة مطلوبة للتحقق من هوية السائق';
-    }
-
-    if (!selfiePhoto) {
-      newErrors.selfiePhoto = 'صورة سيلفي السائق مطلوبة لمطابقة الهوية';
-    }
-
-    if (carPhotos.length === 0) {
-      newErrors.carPhotos = 'يرجى رفع صورة واحدة على الأقل لسيارة العمل';
-    }
-
-    if (!password) {
-      newErrors.password = 'يرجى إنشاء كلمة مرور لحساب السائق';
-    } else if (password.length < 6) {
-      newErrors.password = 'كلمة المرور يجب أن لا تقل عن 6 خانات';
-    }
-
-    if (!confirmPassword) {
-      newErrors.confirmPassword = 'يرجى تأكيد كلمة المرور';
-    } else if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'كلمتا المرور غير متطابقتين';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return Object.keys(filtered).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLoading) return;
     setStatusMessage(null);
 
     if (!validateForm()) {
+      setStatusMessage({
+        type: 'error',
+        text: 'يرجى استكمال جميع البيانات والوثائق الإلزامية بشكل صحيح قبل إرسال الطلب.',
+      });
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const cleanPhone = phone.trim().replace(/\s+/g, '');
+      const cleanPhone = toWesternDigits(phone).replace(/\D/g, '');
       const formData = new FormData();
       formData.append('name', fullName.trim());
       formData.append('phone', cleanPhone);
       formData.append('password', password);
       formData.append('password_confirmation', confirmPassword);
       formData.append('service_type', selectedService);
-      formData.append('vehicle_plate', vehiclePlate.trim() || 'صنعاء / 12345');
-      formData.append('vehicle_model', vehicleModel.trim() || (selectedService === 'truck' ? 'إيسوزو دينا' : selectedService === 'motorcycle' ? 'سانيانغ سكوتر' : 'تويوتا كورولا 2022'));
+      formData.append('vehicle_plate', vehiclePlate.trim());
+      formData.append('vehicle_model', vehicleModel.trim());
       formData.append('vehicle_type', 'comfort');
-      formData.append('max_payload_kg', maxPayload);
-      formData.append('daily_rate', rentalDailyRate);
+      if (selectedService === 'truck') {
+        formData.append('max_payload_kg', toWesternDigits(String(maxPayload)));
+      }
+      if (selectedService === 'rental') {
+        formData.append('daily_rate', toWesternDigits(String(rentalDailyRate)));
+      }
 
       if (licensePhoto?.file) {
         formData.append('license_photo', licensePhoto.file);
@@ -239,9 +297,23 @@ export const DriverRegister = () => {
       });
 
       setTimeout(() => {
-        navigate(getDriverPortalRoute(res.user));
-      }, 2000);
+        navigate(getDriverPortalRoute(res.user), { replace: true });
+      }, 1500);
     } catch (err) {
+      const serverErrors = err?.data?.errors;
+      if (serverErrors) {
+        setErrors((prev) => ({
+          ...prev,
+          fullName: serverErrors.name?.[0] || prev.fullName,
+          phone: serverErrors.phone?.[0] || prev.phone,
+          vehicleModel: serverErrors.vehicle_model?.[0] || prev.vehicleModel,
+          vehiclePlate: serverErrors.vehicle_plate?.[0] || prev.vehiclePlate,
+          licensePhoto: serverErrors.license_photo?.[0] || prev.licensePhoto,
+          selfiePhoto: serverErrors.selfie_photo?.[0] || prev.selfiePhoto,
+          carPhotos: serverErrors.car_front_photo?.[0] || prev.carPhotos,
+          password: serverErrors.password?.[0] || prev.password,
+        }));
+      }
       setStatusMessage({
         type: 'error',
         text: err.message || 'فشل إرسال طلب تسجيل السائق. يرجى مراجعة البيانات المرفقة.',
@@ -324,16 +396,20 @@ export const DriverRegister = () => {
         {/* Status Box */}
         {statusMessage && (
           <div className={`p-4 rounded-xl border text-xs font-tajawal flex items-start gap-2.5 ${
-            statusMessage.type === 'info' 
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+            statusMessage.type === 'success' || statusMessage.type === 'info'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
               : 'bg-red-50 border-red-200 text-red-900'
           }`}>
-            <AlertCircle className="w-5 h-5 flex-shrink-0 text-emerald-700 mt-0.5" />
-            <div className="leading-relaxed">{statusMessage.text}</div>
+            {statusMessage.type === 'success' ? (
+              <CheckCircle className="w-5 h-5 flex-shrink-0 text-emerald-700 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-600 mt-0.5" />
+            )}
+            <div className="leading-relaxed font-semibold">{statusMessage.text}</div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} noValidate className="space-y-5">
           
           {/* Section: Personal Info */}
           <div className="space-y-4">
@@ -348,12 +424,15 @@ export const DriverRegister = () => {
               </label>
               <div className="relative">
                 <input
+                  id="driver-fullName"
                   type="text"
                   value={fullName}
                   onChange={(e) => {
-                    setFullName(e.target.value);
-                    if (errors.fullName) setErrors({ ...errors, fullName: null });
+                    const val = e.target.value;
+                    setFullName(val);
+                    if (errors.fullName) setErrors((prev) => ({ ...prev, fullName: validateSingleField('fullName', val) }));
                   }}
+                  onBlur={() => setErrors((prev) => ({ ...prev, fullName: validateSingleField('fullName', fullName) }))}
                   placeholder="أدخل الاسم الثلاثي أو الرباعي المطابق للرخصة"
                   className={`w-full pl-4 pr-10 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right ${
                     errors.fullName ? 'border-red-400 bg-red-50/30' : 'border-gray-200 focus:border-emerald-600 focus:bg-white'
@@ -371,13 +450,16 @@ export const DriverRegister = () => {
               </label>
               <div className="relative">
                 <input
+                  id="driver-phone"
                   type="tel"
                   dir="rtl"
                   value={phone}
                   onChange={(e) => {
-                    setPhone(e.target.value);
-                    if (errors.phone) setErrors({ ...errors, phone: null });
+                    const val = e.target.value;
+                    setPhone(val);
+                    if (errors.phone) setErrors((prev) => ({ ...prev, phone: validateSingleField('phone', val) }));
                   }}
+                  onBlur={() => setErrors((prev) => ({ ...prev, phone: validateSingleField('phone', phone) }))}
                   placeholder="٧٧٠ ٠٠٠ ٠٠٠"
                   className={`w-full pl-16 pr-10 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right tracking-wider ${
                     errors.phone ? 'border-red-400 bg-red-50/30' : 'border-gray-200 focus:border-emerald-600 focus:bg-white'
@@ -388,6 +470,109 @@ export const DriverRegister = () => {
               </div>
               {errors.phone && <p className="text-xs text-red-600 mt-1">{errors.phone}</p>}
             </div>
+          </div>
+
+          {/* Section: Vehicle Details */}
+          <div className="space-y-4 pt-2">
+            <h2 className="text-sm font-cairo font-bold text-rahaa-navy pb-1 border-b border-gray-100">
+              بيانات المركبة والخدمة
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Vehicle Model */}
+              <div className="space-y-1 text-right">
+                <label className="block text-xs font-cairo font-semibold text-rahaa-navy">
+                  طراز المركبة وسنة الصنع <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="driver-vehicleModel"
+                  type="text"
+                  value={vehicleModel}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setVehicleModel(val);
+                    if (errors.vehicleModel) setErrors((prev) => ({ ...prev, vehicleModel: validateSingleField('vehicleModel', val) }));
+                  }}
+                  onBlur={() => setErrors((prev) => ({ ...prev, vehicleModel: validateSingleField('vehicleModel', vehicleModel) }))}
+                  placeholder="مثال: تويوتا كورولا 2022"
+                  className={`w-full px-4 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right ${
+                    errors.vehicleModel ? 'border-red-400 bg-red-50/30' : 'border-gray-200 focus:border-emerald-600 focus:bg-white'
+                  }`}
+                />
+                {errors.vehicleModel && <p className="text-xs text-red-600 mt-1">{errors.vehicleModel}</p>}
+              </div>
+
+              {/* Vehicle Plate */}
+              <div className="space-y-1 text-right">
+                <label className="block text-xs font-cairo font-semibold text-rahaa-navy">
+                  رقم لوحة المركبة <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="driver-vehiclePlate"
+                  type="text"
+                  value={vehiclePlate}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setVehiclePlate(val);
+                    if (errors.vehiclePlate) setErrors((prev) => ({ ...prev, vehiclePlate: validateSingleField('vehiclePlate', val) }));
+                  }}
+                  onBlur={() => setErrors((prev) => ({ ...prev, vehiclePlate: validateSingleField('vehiclePlate', vehiclePlate) }))}
+                  placeholder="مثال: 1 / 12450"
+                  className={`w-full px-4 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right ${
+                    errors.vehiclePlate ? 'border-red-400 bg-red-50/30' : 'border-gray-200 focus:border-emerald-600 focus:bg-white'
+                  }`}
+                />
+                {errors.vehiclePlate && <p className="text-xs text-red-600 mt-1">{errors.vehiclePlate}</p>}
+              </div>
+            </div>
+
+            {selectedService === 'truck' && (
+              <div className="space-y-1 text-right">
+                <label className="block text-xs font-cairo font-semibold text-rahaa-navy">
+                  الحمولة القصوى (كجم) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="driver-maxPayload"
+                  type="number"
+                  min="100"
+                  value={maxPayload}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setMaxPayload(val);
+                    if (errors.maxPayload) setErrors((prev) => ({ ...prev, maxPayload: validateSingleField('maxPayload', val) }));
+                  }}
+                  onBlur={() => setErrors((prev) => ({ ...prev, maxPayload: validateSingleField('maxPayload', maxPayload) }))}
+                  className={`w-full px-4 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right ${
+                    errors.maxPayload ? 'border-red-400 bg-red-50/30' : 'border-gray-200 focus:border-emerald-600 focus:bg-white'
+                  }`}
+                />
+                {errors.maxPayload && <p className="text-xs text-red-600 mt-1">{errors.maxPayload}</p>}
+              </div>
+            )}
+
+            {selectedService === 'rental' && (
+              <div className="space-y-1 text-right">
+                <label className="block text-xs font-cairo font-semibold text-rahaa-navy">
+                  السعر اليومي للإيجار (ر.ي) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="driver-rentalDailyRate"
+                  type="number"
+                  min="1000"
+                  value={rentalDailyRate}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setRentalDailyRate(val);
+                    if (errors.rentalDailyRate) setErrors((prev) => ({ ...prev, rentalDailyRate: validateSingleField('rentalDailyRate', val) }));
+                  }}
+                  onBlur={() => setErrors((prev) => ({ ...prev, rentalDailyRate: validateSingleField('rentalDailyRate', rentalDailyRate) }))}
+                  className={`w-full px-4 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right ${
+                    errors.rentalDailyRate ? 'border-red-400 bg-red-50/30' : 'border-gray-200 focus:border-emerald-600 focus:bg-white'
+                  }`}
+                />
+                {errors.rentalDailyRate && <p className="text-xs text-red-600 mt-1">{errors.rentalDailyRate}</p>}
+              </div>
+            )}
           </div>
 
           {/* Section: Document & Image Uploads */}
@@ -578,12 +763,21 @@ export const DriverRegister = () => {
               </label>
               <div className="relative">
                 <input
+                  id="driver-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (errors.password) setErrors({ ...errors, password: null });
+                    const val = e.target.value;
+                    setPassword(val);
+                    setErrors((prev) => ({
+                      ...prev,
+                      password: prev.password ? validateSingleField('password', val) : null,
+                      confirmPassword: confirmPassword
+                        ? validateSingleField('confirmPassword', confirmPassword, val)
+                        : prev.confirmPassword,
+                    }));
                   }}
+                  onBlur={() => setErrors((prev) => ({ ...prev, password: validateSingleField('password', password) }))}
                   placeholder="••••••••••••"
                   className={`w-full pl-10 pr-10 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right ${
                     errors.password ? 'border-red-400 bg-red-50/30' : 'border-gray-200 focus:border-emerald-600 focus:bg-white'
@@ -608,12 +802,23 @@ export const DriverRegister = () => {
               </label>
               <div className="relative">
                 <input
+                  id="driver-confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => {
-                    setConfirmPassword(e.target.value);
-                    if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: null });
+                    const val = e.target.value;
+                    setConfirmPassword(val);
+                    setErrors((prev) => ({
+                      ...prev,
+                      confirmPassword: validateSingleField('confirmPassword', val, password),
+                    }));
                   }}
+                  onBlur={() =>
+                    setErrors((prev) => ({
+                      ...prev,
+                      confirmPassword: validateSingleField('confirmPassword', confirmPassword, password),
+                    }))
+                  }
                   placeholder="••••••••••••"
                   className={`w-full pl-10 pr-10 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right ${
                     errors.confirmPassword ? 'border-red-400 bg-red-50/30' : 'border-gray-200 focus:border-emerald-600 focus:bg-white'

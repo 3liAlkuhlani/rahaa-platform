@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Phone, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { User, Phone, Lock, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { api, setToken, setCurrentUser } from '../services/api';
+import { toWesternDigits } from '../utils/arabicLocalization';
 import { ThemeToggle } from '../components/common/ThemeToggle';
 
 export const PassengerRegister = () => {
@@ -20,51 +21,76 @@ export const PassengerRegister = () => {
   const [errors, setErrors] = useState({});
   const [statusMessage, setStatusMessage] = useState(null);
 
-  // Validate form fields
+  // Validate single field (for real-time & blur validation)
+  const validateSingleField = (field, value, comparePassword = password) => {
+    if (field === 'fullName') {
+      const trimmed = String(value || '').trim();
+      if (!trimmed) return 'يرجى إدخال الاسم الكامل';
+      if (trimmed.length < 3) return 'يجب أن يتكون الاسم من 3 أحرف على الأقل';
+      return null;
+    }
+    if (field === 'phone') {
+      const clean = toWesternDigits(String(value || '')).replace(/\D/g, '');
+      if (!clean) return 'يرجى إدخال رقم الهاتف';
+      if (!/^7[0-9]{8}$/.test(clean)) {
+        return 'يرجى إدخال رقم هاتف صحيح مكون من 9 أرقام ويبدأ بالرقم 7 (مثال: 771234567)';
+      }
+      return null;
+    }
+    if (field === 'password') {
+      if (!value) return 'يرجى إنشاء كلمة المرور';
+      if (value.length < 6) return 'يجب ألا تقل كلمة المرور عن 6 أحرف أو أرقام';
+      return null;
+    }
+    if (field === 'confirmPassword') {
+      if (!value) return 'يرجى تأكيد كلمة المرور';
+      if (value !== comparePassword) return 'كلمة المرور وتأكيدها غير متطابقتين';
+      return null;
+    }
+    return null;
+  };
+
+  // Validate all form fields
   const validateForm = () => {
-    const newErrors = {};
+    const newErrors = {
+      fullName: validateSingleField('fullName', fullName),
+      phone: validateSingleField('phone', phone),
+      password: validateSingleField('password', password),
+      confirmPassword: validateSingleField('confirmPassword', confirmPassword, password),
+    };
 
-    if (!fullName.trim()) {
-      newErrors.fullName = 'يرجى إدخال الاسم الكامل';
-    } else if (fullName.trim().length < 3) {
-      newErrors.fullName = 'يجب أن يتكون الاسم من 3 أحرف على الأقل';
+    const filtered = Object.fromEntries(Object.entries(newErrors).filter(([, v]) => Boolean(v)));
+    setErrors(filtered);
+
+    const firstKey = Object.keys(filtered)[0];
+    if (firstKey) {
+      const el = document.getElementById(`passenger-${firstKey}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus();
+      }
     }
 
-    const cleanPhone = phone.trim().replace(/\s+/g, '');
-    if (!cleanPhone) {
-      newErrors.phone = 'يرجى إدخال رقم الهاتف';
-    } else if (!/^7[0-9]{8}$/.test(cleanPhone)) {
-      newErrors.phone = 'رقم الهاتف يجب أن يتكون من 9 أرقام ويبدأ بالرقم 7 (مثال: 771234567)';
-    }
-
-    if (!password) {
-      newErrors.password = 'يرجى إنشاء كلمة مرور';
-    } else if (password.length < 6) {
-      newErrors.password = 'يجب أن لا تقل كلمة المرور عن 6 أحرف أو أرقام';
-    }
-
-    if (!confirmPassword) {
-      newErrors.confirmPassword = 'يرجى تأكيد كلمة المرور';
-    } else if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'كلمتا المرور غير متطابقتين';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return Object.keys(filtered).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLoading) return;
     setStatusMessage(null);
 
     if (!validateForm()) {
+      setStatusMessage({
+        type: 'error',
+        text: 'يرجى تعبئة جميع الحقول المطلوبة بشكل صحيح قبل إنشاء الحساب.',
+      });
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const cleanPhone = phone.trim().replace(/\s+/g, '');
+      const cleanPhone = toWesternDigits(phone).replace(/\D/g, '');
       const res = await api.registerPassenger({
         name: fullName.trim(),
         phone: cleanPhone,
@@ -81,9 +107,18 @@ export const PassengerRegister = () => {
       });
 
       setTimeout(() => {
-        navigate('/passenger');
-      }, 1500);
+        navigate('/passenger', { replace: true });
+      }, 1200);
     } catch (err) {
+      const serverErrors = err?.data?.errors;
+      if (serverErrors) {
+        setErrors((prev) => ({
+          ...prev,
+          fullName: serverErrors.name?.[0] || prev.fullName,
+          phone: serverErrors.phone?.[0] || prev.phone,
+          password: serverErrors.password?.[0] || prev.password,
+        }));
+      }
       setStatusMessage({
         type: 'error',
         text: err.message || 'فشل إنشاء الحساب. يرجى التأكد من صحة البيانات وعدم تكرار رقم الهاتف.',
@@ -126,17 +161,23 @@ export const PassengerRegister = () => {
         {/* Status / Notice Box */}
         {statusMessage && (
           <div className={`p-4 rounded-xl border text-xs font-tajawal flex items-start gap-2.5 ${
-            statusMessage.type === 'info' 
+            statusMessage.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : statusMessage.type === 'info' 
               ? 'bg-blue-50 border-blue-200 text-blue-900' 
               : 'bg-red-50 border-red-200 text-red-900'
           }`}>
-            <AlertCircle className="w-5 h-5 flex-shrink-0 text-rahaa-blue mt-0.5" />
-            <div className="leading-relaxed">{statusMessage.text}</div>
+            {statusMessage.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-600 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-600 mt-0.5" />
+            )}
+            <div className="leading-relaxed font-semibold">{statusMessage.text}</div>
           </div>
         )}
 
         {/* Registration Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           
           {/* 1. Full Name */}
           <div className="space-y-1 text-right">
@@ -145,12 +186,17 @@ export const PassengerRegister = () => {
             </label>
             <div className="relative">
               <input
+                id="passenger-fullName"
                 type="text"
                 value={fullName}
                 onChange={(e) => {
-                  setFullName(e.target.value);
-                  if (errors.fullName) setErrors({ ...errors, fullName: null });
+                  const val = e.target.value;
+                  setFullName(val);
+                  if (errors.fullName) {
+                    setErrors((prev) => ({ ...prev, fullName: validateSingleField('fullName', val) }));
+                  }
                 }}
+                onBlur={() => setErrors((prev) => ({ ...prev, fullName: validateSingleField('fullName', fullName) }))}
                 placeholder="أدخل اسمك الثلاثي أو الرباعي"
                 className={`w-full pl-4 pr-10 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right ${
                   errors.fullName 
@@ -172,13 +218,18 @@ export const PassengerRegister = () => {
             </label>
             <div className="relative">
               <input
+                id="passenger-phone"
                 type="tel"
                 dir="rtl"
                 value={phone}
                 onChange={(e) => {
-                  setPhone(e.target.value);
-                  if (errors.phone) setErrors({ ...errors, phone: null });
+                  const val = e.target.value;
+                  setPhone(val);
+                  if (errors.phone) {
+                    setErrors((prev) => ({ ...prev, phone: validateSingleField('phone', val) }));
+                  }
                 }}
+                onBlur={() => setErrors((prev) => ({ ...prev, phone: validateSingleField('phone', phone) }))}
                 placeholder="٧٧٠ ٠٠٠ ٠٠٠"
                 className={`w-full pl-16 pr-10 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right tracking-wider ${
                   errors.phone 
@@ -203,12 +254,19 @@ export const PassengerRegister = () => {
             </label>
             <div className="relative">
               <input
+                id="passenger-password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (errors.password) setErrors({ ...errors, password: null });
+                  const val = e.target.value;
+                  setPassword(val);
+                  setErrors((prev) => ({
+                    ...prev,
+                    password: prev.password ? validateSingleField('password', val) : null,
+                    confirmPassword: confirmPassword ? validateSingleField('confirmPassword', confirmPassword, val) : prev.confirmPassword,
+                  }));
                 }}
+                onBlur={() => setErrors((prev) => ({ ...prev, password: validateSingleField('password', password) }))}
                 placeholder="••••••••••••"
                 className={`w-full pl-10 pr-10 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right ${
                   errors.password 
@@ -238,12 +296,23 @@ export const PassengerRegister = () => {
             </label>
             <div className="relative">
               <input
+                id="passenger-confirmPassword"
                 type={showConfirmPassword ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: null });
+                  const val = e.target.value;
+                  setConfirmPassword(val);
+                  setErrors((prev) => ({
+                    ...prev,
+                    confirmPassword: validateSingleField('confirmPassword', val, password),
+                  }));
                 }}
+                onBlur={() =>
+                  setErrors((prev) => ({
+                    ...prev,
+                    confirmPassword: validateSingleField('confirmPassword', confirmPassword, password),
+                  }))
+                }
                 placeholder="••••••••••••"
                 className={`w-full pl-10 pr-10 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right ${
                   errors.confirmPassword 
