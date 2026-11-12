@@ -114,16 +114,6 @@ const DEMO_ACCOUNTS = [
     icon: '🏍️',
     desc: 'عصام البعداني للتوصيل',
   },
-  {
-    id: 'admin',
-    role: 'admin',
-    serviceType: null,
-    title: 'مدير النظام',
-    phone: '٧٧٠٠٠٠٠٠٠',
-    password: '12345',
-    icon: '🛡️',
-    desc: 'علي نشوان (الإدارة)',
-  },
 ];
 
 export const Login = ({ onLoginSuccess }) => {

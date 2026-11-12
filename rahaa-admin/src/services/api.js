@@ -136,8 +136,13 @@ async function request(endpoint, options = {}) {
       if (response.status === 401 && token && !normalizedEndpoint.startsWith('/auth/login')) {
         removeToken();
         removeCurrentUser();
-        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-          window.location.href = '/login';
+        if (typeof window !== 'undefined') {
+          const path = window.location.pathname;
+          const isAdminPortal = path.startsWith('/admin') || path.startsWith('/supervisor');
+          const isAuthPage = path === '/login' || path === '/admin/login' || path === '/supervisor/login';
+          if (!isAuthPage) {
+            window.location.href = isAdminPortal ? '/admin/login' : '/login';
+          }
         }
       }
       const errorMsg = data.message || `خطأ في الخادم (${response.status})`;

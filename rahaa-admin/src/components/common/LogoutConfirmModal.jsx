@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LogOut, X } from 'lucide-react';
-import { api, removeToken, removeCurrentUser } from '../../services/api';
+import { api, getCurrentUser, isAdminOrSupervisor, removeToken, removeCurrentUser } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 
 export const LogoutConfirmModal = ({ isOpen, onClose, onConfirmSuccess }) => {
@@ -11,6 +11,11 @@ export const LogoutConfirmModal = ({ isOpen, onClose, onConfirmSuccess }) => {
 
   const handleConfirmLogout = async () => {
     setIsLoggingOut(true);
+    const wasAdminPortal =
+      isAdminOrSupervisor(getCurrentUser()) ||
+      (typeof window !== 'undefined' &&
+        (window.location.pathname.startsWith('/admin') ||
+          window.location.pathname.startsWith('/supervisor')));
     try {
       await api.logout();
     } catch {
@@ -21,7 +26,7 @@ export const LogoutConfirmModal = ({ isOpen, onClose, onConfirmSuccess }) => {
       setIsLoggingOut(false);
       if (onClose) onClose();
       if (onConfirmSuccess) onConfirmSuccess();
-      navigate('/login', { replace: true });
+      navigate(wasAdminPortal ? '/admin/login' : '/login', { replace: true });
     }
   };
 

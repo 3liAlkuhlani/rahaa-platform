@@ -54,6 +54,7 @@ import { Security } from '../pages/Security';
 import { AdminTransportManagement } from '../pages/AdminTransportManagement';
 import { Complaints } from '../pages/Complaints';
 import { Supervisors } from '../pages/Supervisors';
+import { AdminLogin } from '../pages/AdminLogin';
 
 /**
  * Guard for Admin & Supervisor Portal:
@@ -65,7 +66,7 @@ const AdminProtectedRoute = ({ children, requiredPermission = null, adminOnly = 
   const user = getCurrentUser();
 
   if (!token || !user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/admin/login" replace />;
   }
 
   if (user.role === 'passenger') {
@@ -161,6 +162,8 @@ export const AppRoutes = () => {
 
         {/* ================= Authentication Routes ================= */}
         <Route path="/login" element={<Login />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/supervisor/login" element={<AdminLogin />} />
         <Route path="/register" element={<PassengerRegister />} />
         <Route path="/register/passenger" element={<PassengerRegister />} />
         <Route path="/register/driver" element={<DriverRegister />} />
