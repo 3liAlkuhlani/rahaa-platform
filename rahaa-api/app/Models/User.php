@@ -11,6 +11,17 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
+    public const SUPERVISOR_PERMISSIONS = [
+        'overview',
+        'users',
+        'drivers',
+        'trips',
+        'vehicles',
+        'complaints',
+        'analytics',
+        'settings',
+    ];
+
     protected $fillable = [
         'name',
         'username',
@@ -18,6 +29,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'permissions',
         'status',
         'avatar',
         'phone_verified_at',
@@ -33,6 +45,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
+            'permissions' => 'array',
             'password' => 'hashed',
         ];
     }
@@ -92,9 +105,39 @@ class User extends Authenticatable
         return $this->hasMany(CargoRequest::class, 'driver_id');
     }
 
+    public function complaints()
+    {
+        return $this->hasMany(Complaint::class, 'user_id');
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    public function isSupervisor(): bool
+    {
+        return $this->role === 'supervisor';
+    }
+
+    public function isAdminOrSupervisor(): bool
+    {
+        return in_array($this->role, ['admin', 'supervisor'], true);
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+        if (!$this->isSupervisor()) {
+            return false;
+        }
+        if ($permission === 'supervisors') {
+            return false;
+        }
+        $perms = is_array($this->permissions) ? $this->permissions : [];
+        return in_array($permission, $perms, true);
     }
 
     public function isDriver(): bool

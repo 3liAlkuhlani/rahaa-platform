@@ -17,7 +17,7 @@ import {
   Sparkles,
   ArrowLeft,
 } from 'lucide-react';
-import { api, setToken, setCurrentUser, getDriverPortalRoute } from '../services/api';
+import { api, setToken, setCurrentUser, getDriverPortalRoute, getAdminDefaultRoute } from '../services/api';
 import { ThemeToggle } from '../components/common/ThemeToggle';
 
 const DRIVER_VEHICLE_PORTALS = [
@@ -203,8 +203,8 @@ export const Login = ({ onLoginSuccess }) => {
 
       if (onLoginSuccess) onLoginSuccess(res.user);
 
-      if (res.user.role === 'admin') {
-        navigate('/admin', { replace: true });
+      if (res.user.role === 'admin' || res.user.role === 'supervisor') {
+        navigate(getAdminDefaultRoute(res.user), { replace: true });
       } else if (res.user.role === 'driver') {
         // Redirect driver directly to the dedicated page of the vehicle they own
         const targetDriverRoute = getDriverPortalRoute(res.user);

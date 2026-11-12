@@ -5,6 +5,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\AdminPasswordController;
+use App\Http\Controllers\Api\AdminComplaintController;
+use App\Http\Controllers\Api\AdminSupervisorController;
 use App\Http\Controllers\Api\TripController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\MultiTransportController;
@@ -41,6 +43,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
+    // Complaints & Reports submission (Passenger & Driver)
+    Route::post('/complaints', [AdminComplaintController::class, 'submitComplaint']);
+    Route::get('/complaints/my', [AdminComplaintController::class, 'myComplaints']);
+
     // Multi-Transport Endpoints (Taxi, Rentals, Cargo Trucks, Motorcycles)
     Route::prefix('transport')->group(function () {
         Route::get('/active-order', [MultiTransportController::class, 'getActiveOrder']);
@@ -75,36 +81,68 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/rate', [TripController::class, 'rateTrip']);
     });
 
-    // Admin-Only Routes (Strictly protected by EnsureAdminRole middleware)
+    // Admin & Supervisor Portal Routes (Protected by EnsureAdminRole + Granular Permission RBAC)
     Route::prefix('admin')->middleware('admin')->group(function () {
-        // Change Admin Password strictly from inside Admin Dashboard
-        Route::post('/change-password', [AdminPasswordController::class, 'changePassword']);
-
-        // Dashboard Stats
-        Route::get('/stats', [AdminController::class, 'dashboardStats']);
+        // Dashboard Overview & Real-Time Charts
+        Route::get('/stats', [AdminController::class, 'dashboardStats'])->middleware('permission:overview');
 
         // Drivers Management
-        Route::get('/drivers', [AdminController::class, 'listDrivers']);
-        Route::post('/drivers/{id}/approve', [AdminController::class, 'approveDriver']);
-        Route::post('/drivers/{id}/reject', [AdminController::class, 'rejectDriver']);
+        Route::middleware('permission:drivers')->group(function () {
+            Route::get('/drivers', [AdminController::class, 'listDrivers']);
+            Route::get('/drivers/{id}', [AdminController::class, 'showDriver'])->whereNumber('id');
+            Route::post('/drivers/{id}/approve', [AdminController::class, 'approveDriver']);
+            Route::post('/drivers/{id}/reject', [AdminController::class, 'rejectDriver']);
+        });
 
-        // Passengers Management
-        Route::get('/passengers', [AdminController::class, 'listPassengers']);
+        // Users & Passengers Management
+        Route::middleware('permission:users')->group(function () {
+            Route::get('/users', [AdminController::class, 'listUsers']);
+            Route::get('/users/{id}', [AdminController::class, 'showUser'])->whereNumber('id');
+            Route::put('/users/{id}', [AdminController::class, 'updateUser'])->whereNumber('id');
+            Route::get('/passengers', [AdminController::class, 'listPassengers']);
+            Route::post('/users/{id}/toggle-status', [AdminController::class, 'toggleUserStatus']);
+        });
 
         // Trips Management
-        Route::get('/trips', [AdminController::class, 'listTrips']);
+        Route::middleware('permission:trips')->group(function () {
+            Route::get('/trips', [AdminController::class, 'listTrips']);
+            Route::get('/trips/{id}', [AdminController::class, 'showTrip'])->whereNumber('id');
+        });
 
-        // Multi-Transport Management
-        Route::get('/transport/vehicles', [AdminTransportController::class, 'listVehicles']);
-        Route::post('/transport/vehicles/{id}/approve', [AdminTransportController::class, 'approveVehicle']);
-        Route::post('/transport/vehicles/{id}/reject', [AdminTransportController::class, 'rejectVehicle']);
-        Route::get('/transport/documents', [AdminTransportController::class, 'listDocuments']);
-        Route::post('/transport/documents/{id}/verify', [AdminTransportController::class, 'verifyDocument']);
-        Route::get('/transport/rentals/bookings', [AdminTransportController::class, 'listRentalBookings']);
-        Route::get('/transport/cargo/requests', [AdminTransportController::class, 'listCargoRequests']);
-        Route::post('/transport/services/{slug}', [AdminTransportController::class, 'updateServiceType']);
+        // Vehicles & Multi-Transport Management
+        Route::middleware('permission:vehicles')->group(function () {
+            Route::get('/transport/vehicles', [AdminTransportController::class, 'listVehicles']);
+            Route::put('/transport/vehicles/{id}', [AdminTransportController::class, 'updateVehicle'])->whereNumber('id');
+            Route::post('/transport/vehicles/{id}/approve', [AdminTransportController::class, 'approveVehicle']);
+            Route::post('/transport/vehicles/{id}/reject', [AdminTransportController::class, 'rejectVehicle']);
+            Route::get('/transport/documents', [AdminTransportController::class, 'listDocuments']);
+            Route::post('/transport/documents/{id}/verify', [AdminTransportController::class, 'verifyDocument']);
+            Route::get('/transport/rentals/bookings', [AdminTransportController::class, 'listRentalBookings']);
+            Route::get('/transport/cargo/requests', [AdminTransportController::class, 'listCargoRequests']);
+            Route::post('/transport/services/{slug}', [AdminTransportController::class, 'updateServiceType']);
+        });
 
-        // Ban / Unban
-        Route::post('/users/{id}/toggle-status', [AdminController::class, 'toggleUserStatus']);
+        // Complaints & Reports Management
+        Route::middleware('permission:complaints')->group(function () {
+            Route::get('/complaints', [AdminComplaintController::class, 'listComplaints']);
+            Route::get('/complaints/{id}', [AdminComplaintController::class, 'showComplaint'])->whereNumber('id');
+            Route::put('/complaints/{id}', [AdminComplaintController::class, 'updateComplaint'])->whereNumber('id');
+        });
+
+        // Reports & Analytics + CSV/Excel Export
+        Route::middleware('permission:analytics')->group(function () {
+            Route::get('/reports', [AdminController::class, 'reports']);
+            Route::get('/reports/export', [AdminController::class, 'exportReport']);
+        });
+
+        // Strictly Admin-Only Routes (Supervisors CANNOT access these)
+        Route::middleware('admin.only')->group(function () {
+            Route::post('/change-password', [AdminPasswordController::class, 'changePassword']);
+            Route::get('/supervisors', [AdminSupervisorController::class, 'listSupervisors']);
+            Route::post('/supervisors', [AdminSupervisorController::class, 'createSupervisor']);
+            Route::put('/supervisors/{id}', [AdminSupervisorController::class, 'updateSupervisor'])->whereNumber('id');
+            Route::post('/supervisors/{id}/toggle-status', [AdminSupervisorController::class, 'toggleSupervisorStatus'])->whereNumber('id');
+            Route::get('/audit-logs', [AdminSupervisorController::class, 'auditLogs']);
+        });
     });
 });

@@ -20,6 +20,40 @@ export const getCurrentUser = () => {
 export const setCurrentUser = (user) => localStorage.setItem('rahaa_user', JSON.stringify(user));
 export const removeCurrentUser = () => localStorage.removeItem('rahaa_user');
 
+export const ADMIN_PERMISSION_ROUTES = [
+  { key: 'overview', path: '/admin' },
+  { key: 'vehicles', path: '/admin/transport' },
+  { key: 'trips', path: '/admin/trips' },
+  { key: 'drivers', path: '/admin/drivers' },
+  { key: 'users', path: '/admin/users' },
+  { key: 'complaints', path: '/admin/complaints' },
+  { key: 'analytics', path: '/admin/analytics' },
+  { key: 'supervisors', path: '/admin/supervisors' },
+  { key: 'settings', path: '/admin/settings' },
+];
+
+export const isAdminOrSupervisor = (user = getCurrentUser()) =>
+  Boolean(user && (user.role === 'admin' || user.role === 'supervisor'));
+
+export const hasAdminPermission = (permission, user = getCurrentUser()) => {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  if (user.role !== 'supervisor') return false;
+  if (!permission) return true;
+  if (permission === 'supervisors') return false;
+  return Array.isArray(user.permissions) && user.permissions.includes(permission);
+};
+
+export const getAdminDefaultRoute = (user = getCurrentUser()) => {
+  if (!user) return '/login';
+  if (user.role === 'admin') return '/admin';
+  if (user.role === 'supervisor') {
+    const firstAllowed = ADMIN_PERMISSION_ROUTES.find((r) => hasAdminPermission(r.key, user));
+    return firstAllowed ? firstAllowed.path : '/admin/help';
+  }
+  return '/login';
+};
+
 /**
  * Determine the specific transport service owned by the driver ('taxi' | 'rental' | 'truck' | 'motorcycle')
  */
@@ -99,6 +133,13 @@ async function request(endpoint, options = {}) {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      if (response.status === 401 && token && !normalizedEndpoint.startsWith('/auth/login')) {
+        removeToken();
+        removeCurrentUser();
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login';
+        }
+      }
       const errorMsg = data.message || `خطأ في الخادم (${response.status})`;
       const error = new Error(errorMsg);
       error.status = response.status;
@@ -156,17 +197,127 @@ export const api = {
     body: JSON.stringify(data),
   }),
 
-  // Admin Dashboard & Management
-  getAdminStats: () => request('/admin/stats', { method: 'GET' }),
-  getDrivers: (status = 'all') => request(`/admin/drivers?status=${status}`, { method: 'GET' }),
+  // Admin & Supervisor Dashboard & Management
+  getAdminStats: (period = '30d') => request(`/admin/stats?period=${encodeURIComponent(period)}`, { method: 'GET' }),
+
+  // Users Management
+  getAdminUsers: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return request(`/admin/users${query}`, { method: 'GET' });
+  },
+  getAdminUser: (id) => request(`/admin/users/${id}`, { method: 'GET' }),
+  updateAdminUser: (id, data) => request(`/admin/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  getPassengers: () => request('/admin/passengers', { method: 'GET' }),
+  toggleUserStatus: (id) => request(`/admin/users/${id}/toggle-status`, { method: 'POST' }),
+
+  // Drivers Management
+  getDrivers: (paramsOrStatus = 'all') => {
+    if (typeof paramsOrStatus === 'string') {
+      return request(`/admin/drivers?status=${encodeURIComponent(paramsOrStatus)}`, { method: 'GET' });
+    }
+    const qs = new URLSearchParams();
+    Object.entries(paramsOrStatus || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return request(`/admin/drivers${query}`, { method: 'GET' });
+  },
+  getAdminDriver: (id) => request(`/admin/drivers/${id}`, { method: 'GET' }),
   approveDriver: (id) => request(`/admin/drivers/${id}/approve`, { method: 'POST' }),
   rejectDriver: (id, reason) => request(`/admin/drivers/${id}/reject`, {
     method: 'POST',
     body: JSON.stringify({ reason }),
   }),
-  getPassengers: () => request('/admin/passengers', { method: 'GET' }),
-  getAdminTrips: (status = 'all') => request(`/admin/trips?status=${status}`, { method: 'GET' }),
-  toggleUserStatus: (id) => request(`/admin/users/${id}/toggle-status`, { method: 'POST' }),
+
+  // Trips Management
+  getAdminTrips: (paramsOrStatus = 'all') => {
+    if (typeof paramsOrStatus === 'string') {
+      return request(`/admin/trips?status=${encodeURIComponent(paramsOrStatus)}`, { method: 'GET' });
+    }
+    const qs = new URLSearchParams();
+    Object.entries(paramsOrStatus || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return request(`/admin/trips${query}`, { method: 'GET' });
+  },
+  getAdminTrip: (id) => request(`/admin/trips/${id}`, { method: 'GET' }),
+
+  // Vehicles Update
+  updateAdminVehicle: (id, data) => request(`/admin/transport/vehicles/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+
+  // Complaints & Reports
+  submitComplaint: (data) => request('/complaints', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  getMyComplaints: () => request('/complaints/my', { method: 'GET' }),
+  getAdminComplaints: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return request(`/admin/complaints${query}`, { method: 'GET' });
+  },
+  getAdminComplaint: (id) => request(`/admin/complaints/${id}`, { method: 'GET' }),
+  updateAdminComplaint: (id, data) => request(`/admin/complaints/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+
+  // Supervisors & Audit Logs (Admin-Only)
+  getSupervisors: () => request('/admin/supervisors', { method: 'GET' }),
+  createSupervisor: (data) => request('/admin/supervisors', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  updateSupervisor: (id, data) => request(`/admin/supervisors/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  toggleSupervisorStatus: (id) => request(`/admin/supervisors/${id}/toggle-status`, { method: 'POST' }),
+  getAuditLogs: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return request(`/admin/audit-logs${query}`, { method: 'GET' });
+  },
+
+  // Reports & CSV/Excel Export
+  getAdminReports: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return request(`/admin/reports${query}`, { method: 'GET' });
+  },
+  exportAdminReport: async (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+    });
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/admin/reports/export${query}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('فشل تصدير التقرير');
+    return res.blob();
+  },
 
   // Trips
   getMyTrips: () => request('/trips/my-trips', { method: 'GET' }),

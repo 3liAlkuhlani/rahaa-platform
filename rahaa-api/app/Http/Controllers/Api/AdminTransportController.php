@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminLog;
 use App\Models\ServiceType;
 use App\Models\Vehicle;
 use App\Models\RentalBooking;
@@ -55,6 +56,15 @@ class AdminTransportController extends Controller
                 'approved_at' => now(),
             ]);
 
+        AdminLog::create([
+            'admin_id' => $request->user()->id,
+            'action' => 'vehicle_approved',
+            'target_type' => 'Vehicle',
+            'target_id' => $vehicle->id,
+            'details' => "تم اعتماد المركبة {$vehicle->make} {$vehicle->model} ({$vehicle->plate_number})",
+            'ip_address' => $request->ip(),
+        ]);
+
         return response()->json([
             'success' => true,
             'message' => "تم اعتماد المركبة ({$vehicle->make} {$vehicle->model}) وتفعيل الخدمة للمالك بنجاح",
@@ -72,10 +82,55 @@ class AdminTransportController extends Controller
         $vehicle->rejection_reason = $request->input('reason', 'الوثائق أو صور المركبة غير مطابقة للشروط والمعايير');
         $vehicle->save();
 
+        AdminLog::create([
+            'admin_id' => $request->user()->id,
+            'action' => 'vehicle_rejected',
+            'target_type' => 'Vehicle',
+            'target_id' => $vehicle->id,
+            'details' => "تم رفض المركبة {$vehicle->make} {$vehicle->model}. السبب: {$vehicle->rejection_reason}",
+            'ip_address' => $request->ip(),
+        ]);
+
         return response()->json([
             'success' => true,
             'message' => 'تم رفض اعتماد المركبة وتدوين السبب بنجاح',
             'vehicle' => $vehicle,
+        ]);
+    }
+
+    /**
+     * Admin: Update Vehicle details
+     */
+    public function updateVehicle(Request $request, $id)
+    {
+        $vehicle = Vehicle::findOrFail($id);
+
+        $validated = $request->validate([
+            'make' => 'sometimes|string|max:80',
+            'model' => 'sometimes|string|max:80',
+            'year' => 'sometimes|integer|min:1980|max:2030',
+            'plate_number' => 'sometimes|string|max:40',
+            'color' => 'nullable|string|max:40',
+            'daily_rate' => 'nullable|numeric|min:0',
+            'max_payload_kg' => 'nullable|numeric|min:0',
+            'status' => 'sometimes|in:pending,approved,rejected,suspended',
+        ]);
+
+        $vehicle->update($validated);
+
+        AdminLog::create([
+            'admin_id' => $request->user()->id,
+            'action' => 'vehicle_updated',
+            'target_type' => 'Vehicle',
+            'target_id' => $vehicle->id,
+            'details' => "تم تعديل بيانات المركبة {$vehicle->make} {$vehicle->model} ({$vehicle->plate_number})",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم تحديث بيانات المركبة بنجاح',
+            'vehicle' => $vehicle->fresh(['owner:id,name,phone']),
         ]);
     }
 

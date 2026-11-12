@@ -137,5 +137,21 @@ class DatabaseSeeder extends Seeder
 
         // 6. Multi-Transport Services and Vehicles
         $this->call(MultiTransportSeeder::class);
+
+        // 7. Initial Complaints (if none exist)
+        if (\App\Models\Complaint::count() === 0) {
+            $samplePassenger = User::where('role', 'passenger')->first();
+            $sampleTrip = Trip::first();
+            if ($samplePassenger) {
+                \App\Models\Complaint::create([
+                    'user_id' => $samplePassenger->id,
+                    'trip_id' => $sampleTrip?->id,
+                    'subject' => 'تأخر بسيط في نقطة الالتقاء',
+                    'description' => 'تأخر الكابتن حوالي 8 دقائق بسبب الازدحام في جولة الرويشان.',
+                    'category' => 'trip',
+                    'status' => 'open',
+                ]);
+            }
+        }
     }
 }

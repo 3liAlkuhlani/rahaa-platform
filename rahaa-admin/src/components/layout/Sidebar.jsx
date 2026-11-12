@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { navItems, secondaryNavItems } from '../../config/navigation';
 import { X, LogOut } from 'lucide-react';
 import { LogoutConfirmModal } from '../common/LogoutConfirmModal';
-import { getCurrentUser } from '../../services/api';
+import { getCurrentUser, hasAdminPermission } from '../../services/api';
 import { ThemeToggle } from '../common/ThemeToggle';
 
 export const Sidebar = ({ isOpen, onClose }) => {
@@ -64,7 +64,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
               القائمة الرئيسية
             </div>
 
-            {navItems.map((item) => {
+            {navItems
+              .filter((item) => {
+                if (item.adminOnly && currentUser?.role !== 'admin') return false;
+                if (item.permission && !hasAdminPermission(item.permission, currentUser)) return false;
+                return true;
+              })
+              .map((item) => {
               const Icon = item.icon;
               const isActive =
                 location.pathname === item.path ||
@@ -142,7 +148,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
               </span>
               <span className="font-tajawal text-[11px] text-rahaa-emerald flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-rahaa-emerald inline-block" />
-                المشرف الإداري
+                {currentUser?.role === 'admin' ? 'مدير النظام (أدمن)' : 'مشرف صلاحيات'}
               </span>
             </div>
 

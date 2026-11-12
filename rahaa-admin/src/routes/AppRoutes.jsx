@@ -1,6 +1,14 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { getToken, getCurrentUser, getDriverPrimaryService, getDriverPortalRoute } from '../services/api';
+import {
+  getToken,
+  getCurrentUser,
+  getDriverPrimaryService,
+  getDriverPortalRoute,
+  isAdminOrSupervisor,
+  hasAdminPermission,
+  getAdminDefaultRoute,
+} from '../services/api';
 
 // Layouts
 import { AdminLayout } from '../components/layout/AdminLayout';
@@ -44,12 +52,15 @@ import { Settings } from '../pages/Settings';
 import { Help } from '../pages/Help';
 import { Security } from '../pages/Security';
 import { AdminTransportManagement } from '../pages/AdminTransportManagement';
+import { Complaints } from '../pages/Complaints';
+import { Supervisors } from '../pages/Supervisors';
 
 /**
- * Guard for Admin Portal:
- * Strictly blocks Passengers and Drivers from entering the Admin Dashboard.
+ * Guard for Admin & Supervisor Portal:
+ * Strictly blocks Passengers and Drivers from entering the Admin Dashboard,
+ * and enforces per-route RBAC permissions for Supervisors.
  */
-const AdminProtectedRoute = ({ children }) => {
+const AdminProtectedRoute = ({ children, requiredPermission = null, adminOnly = false }) => {
   const token = getToken();
   const user = getCurrentUser();
 
@@ -65,8 +76,16 @@ const AdminProtectedRoute = ({ children }) => {
     return <Navigate to={getDriverPortalRoute(user)} replace />;
   }
 
-  if (user.role !== 'admin') {
+  if (!isAdminOrSupervisor(user)) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (adminOnly && user.role !== 'admin') {
+    return <Navigate to={getAdminDefaultRoute(user)} replace />;
+  }
+
+  if (requiredPermission && !hasAdminPermission(requiredPermission, user)) {
+    return <Navigate to={getAdminDefaultRoute(user)} replace />;
   }
 
   return children;
@@ -83,8 +102,8 @@ const PassengerProtectedRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (user.role === 'admin') {
-    return <Navigate to="/admin" replace />;
+  if (isAdminOrSupervisor(user)) {
+    return <Navigate to={getAdminDefaultRoute(user)} replace />;
   }
 
   if (user.role === 'driver') {
@@ -105,8 +124,8 @@ const DriverProtectedRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (user.role === 'admin') {
-    return <Navigate to="/admin" replace />;
+  if (isAdminOrSupervisor(user)) {
+    return <Navigate to={getAdminDefaultRoute(user)} replace />;
   }
 
   if (user.role === 'passenger') {
@@ -224,7 +243,7 @@ export const AppRoutes = () => {
           <Route path="profile" element={<DriverProfile />} />
         </Route>
 
-        {/* ================= Independent Admin Portal (/admin) ================= */}
+        {/* ================= Independent Admin & Supervisor Portal (/admin) ================= */}
         <Route
           path="/admin"
           element={
@@ -233,13 +252,78 @@ export const AppRoutes = () => {
             </AdminProtectedRoute>
           }
         >
-          <Route index element={<Dashboard />} />
-          <Route path="transport" element={<AdminTransportManagement />} />
-          <Route path="trips" element={<Trips />} />
-          <Route path="drivers" element={<Drivers />} />
-          <Route path="users" element={<Users />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="settings" element={<Settings />} />
+          <Route
+            index
+            element={
+              <AdminProtectedRoute requiredPermission="overview">
+                <Dashboard />
+              </AdminProtectedRoute>
+            }
+          />
+          <Route
+            path="transport"
+            element={
+              <AdminProtectedRoute requiredPermission="vehicles">
+                <AdminTransportManagement />
+              </AdminProtectedRoute>
+            }
+          />
+          <Route
+            path="trips"
+            element={
+              <AdminProtectedRoute requiredPermission="trips">
+                <Trips />
+              </AdminProtectedRoute>
+            }
+          />
+          <Route
+            path="drivers"
+            element={
+              <AdminProtectedRoute requiredPermission="drivers">
+                <Drivers />
+              </AdminProtectedRoute>
+            }
+          />
+          <Route
+            path="users"
+            element={
+              <AdminProtectedRoute requiredPermission="users">
+                <Users />
+              </AdminProtectedRoute>
+            }
+          />
+          <Route
+            path="complaints"
+            element={
+              <AdminProtectedRoute requiredPermission="complaints">
+                <Complaints />
+              </AdminProtectedRoute>
+            }
+          />
+          <Route
+            path="analytics"
+            element={
+              <AdminProtectedRoute requiredPermission="analytics">
+                <Analytics />
+              </AdminProtectedRoute>
+            }
+          />
+          <Route
+            path="supervisors"
+            element={
+              <AdminProtectedRoute adminOnly>
+                <Supervisors />
+              </AdminProtectedRoute>
+            }
+          />
+          <Route
+            path="settings"
+            element={
+              <AdminProtectedRoute requiredPermission="settings">
+                <Settings />
+              </AdminProtectedRoute>
+            }
+          />
           <Route path="help" element={<Help />} />
           <Route path="security" element={<Security />} />
         </Route>

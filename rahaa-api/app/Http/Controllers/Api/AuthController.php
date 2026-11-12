@@ -33,7 +33,7 @@ class AuthController extends Controller
             $rawUsername = trim($request->username);
             $cleanPhone = preg_replace('/\D/', '', $rawUsername);
 
-            $user = User::where('role', 'admin')
+            $user = User::whereIn('role', ['admin', 'supervisor'])
                 ->where(function ($q) use ($rawUsername, $cleanPhone) {
                     $q->where('username', $rawUsername)
                       ->orWhere('name', $rawUsername);
@@ -57,18 +57,20 @@ class AuthController extends Controller
                 ], 403);
             }
 
-            $token = $user->createToken('admin-access-token', ['admin'])->plainTextToken;
+            $token = $user->createToken('admin-access-token', [$user->role])->plainTextToken;
 
             return response()->json([
                 'success' => true,
-                'message' => 'تم تسجيل دخول المشرف بنجاح',
+                'message' => 'تم تسجيل دخول الإدارة بنجاح',
                 'token' => $token,
                 'user' => [
                     'id' => $user->id,
                     'name' => $user->name,
                     'username' => $user->username,
                     'phone' => $user->phone,
+                    'email' => $user->email,
                     'role' => $user->role,
+                    'permissions' => $user->isAdmin() ? User::SUPERVISOR_PERMISSIONS : ($user->permissions ?? []),
                     'status' => $user->status,
                 ],
             ]);
@@ -171,9 +173,11 @@ class AuthController extends Controller
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
+                'username' => $user->username,
                 'phone' => $user->phone,
                 'email' => $user->email,
                 'role' => $user->role,
+                'permissions' => $user->isAdmin() ? User::SUPERVISOR_PERMISSIONS : ($user->isSupervisor() ? ($user->permissions ?? []) : []),
                 'status' => $user->status,
                 'profile' => $profile,
                 'primary_service' => $primaryService,
@@ -405,6 +409,7 @@ class AuthController extends Controller
                 'phone' => $user->phone,
                 'email' => $user->email,
                 'role' => $user->role,
+                'permissions' => $user->isAdmin() ? User::SUPERVISOR_PERMISSIONS : ($user->isSupervisor() ? ($user->permissions ?? []) : []),
                 'status' => $user->status,
                 'profile' => $profile,
                 'primary_service' => $primaryService,
@@ -419,7 +424,7 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $request->user()?->currentAccessToken()?->delete();
 
         return response()->json([
             'success' => true,
