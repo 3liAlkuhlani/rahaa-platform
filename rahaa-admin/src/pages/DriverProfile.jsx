@@ -189,8 +189,8 @@ export const DriverProfile = () => {
       </div>
 
       {/* Logout Action with Confirmation Dialog */}
-      <div className="bg-rahaa-card rounded-3xl p-6 border border-rahaa-border shadow-rahaa-card flex items-center justify-between">
-        <div>
+      <div className="bg-rahaa-card rounded-3xl p-6 border border-rahaa-border shadow-rahaa-card flex flex-col items-center justify-center text-center gap-4">
+        <div className="space-y-1.5">
           <h3 className="font-cairo font-bold text-sm text-rahaa-navy">إنهاء الجلسة</h3>
           <p className="text-xs text-rahaa-text-muted font-tajawal">
             تسجيل الخروج الآمن من حساب الكابتن
@@ -200,7 +200,7 @@ export const DriverProfile = () => {
         <button
           type="button"
           onClick={() => setIsLogoutOpen(true)}
-          className="h-11 px-5 rounded-xl bg-rahaa-rose-bg hover:opacity-90 text-rahaa-rose border border-rahaa-rose/30 font-cairo font-bold text-xs flex items-center gap-2 transition-all"
+          className="h-11 px-6 rounded-xl bg-rahaa-rose-bg hover:bg-rahaa-rose/15 text-rahaa-rose border border-rahaa-rose/40 font-cairo font-bold text-xs inline-flex items-center justify-center gap-2 transition-all shadow-2xs active:scale-95"
         >
           <LogOut className="w-4 h-4" />
           <span>تسجيل الخروج</span>
