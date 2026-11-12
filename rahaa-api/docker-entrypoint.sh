@@ -12,6 +12,7 @@ php artisan storage:link || true
 
 # Run migrations and essential seeders
 php artisan migrate --force
+php artisan db:seed --force
 php artisan db:seed --class=MultiTransportSeeder --force
 
 # Optimize Laravel
