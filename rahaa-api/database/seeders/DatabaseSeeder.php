@@ -133,6 +133,8 @@ class DatabaseSeeder extends Seeder
                 'payment_method' => 'wallet',
                 'status' => 'requested',
             ]
+        );
+
         // 6. Multi-Transport Services and Vehicles
         $this->call(MultiTransportSeeder::class);
     }
