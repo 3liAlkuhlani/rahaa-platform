@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { User, Phone, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { api, setToken, setCurrentUser } from '../services/api';
 import { ThemeToggle } from '../components/common/ThemeToggle';
-import { StepBackButton } from '../components/common/StepBackButton';
 
 export const PassengerRegister = () => {
   const navigate = useNavigate();
@@ -96,14 +95,9 @@ export const PassengerRegister = () => {
 
   return (
     <div className="min-h-screen bg-rahaa-bg tech-mesh-bg flex flex-col justify-center items-center p-4 relative overflow-hidden font-tajawal" dir="rtl">
-      {/* Floating Top Controls: Single-Step Back & Theme Switcher */}
-      <div className="absolute top-5 left-5 right-5 z-20 flex items-center justify-between pointer-events-none">
-        <div className="pointer-events-auto">
-          <StepBackButton variant="compact" label="تراجع خطوة" />
-        </div>
-        <div className="pointer-events-auto">
-          <ThemeToggle />
-        </div>
+      {/* Floating Top Control: Theme Switcher */}
+      <div className="absolute top-5 left-5 z-20">
+        <ThemeToggle />
       </div>
 
       {/* Background Soft Glow Bulbs */}

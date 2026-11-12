@@ -39,8 +39,12 @@ export const triggerSingleStepBack = (navigate, location, customHandler = null) 
   const user = getCurrentUser();
   const driverRoot = getDriverPortalRoute(user);
 
-  // If history exists beyond initial entry, go back 1 step
-  if (window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0) {
+  // If history exists beyond initial entry, go back 1 step to the exact previous screen
+  const hasHistory =
+    (window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0) ||
+    (typeof window.history.length === 'number' && window.history.length > 1);
+
+  if (hasHistory) {
     navigate(-1);
     return;
   }

@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { api, setToken, setCurrentUser, getDriverPortalRoute } from '../services/api';
 import { ThemeToggle } from '../components/common/ThemeToggle';
-import { StepBackButton, useRegisterStepBack } from '../components/common/StepBackButton';
 
 const DRIVER_VEHICLE_PORTALS = [
   {
@@ -156,24 +155,6 @@ export const Login = ({ onLoginSuccess }) => {
   const activeDriverPortal =
     DRIVER_VEHICLE_PORTALS.find((p) => p.id === driverServiceType) || DRIVER_VEHICLE_PORTALS[0];
 
-  // Register Single-Step Undo for Login Modal & Role states
-  useRegisterStepBack(() => {
-    if (showResetModal) {
-      if (resetStep > 1) {
-        setResetStep((prev) => prev - 1);
-        setResetError('');
-        setResetSuccess('');
-      } else {
-        setShowResetModal(false);
-      }
-      return true;
-    }
-    if (userRole === 'driver') {
-      setUserRole('passenger');
-      return true;
-    }
-    return false;
-  });
 
   const handleFillDemo = (acc) => {
     setPhone(acc.phone);
@@ -333,14 +314,9 @@ export const Login = ({ onLoginSuccess }) => {
 
   return (
     <div className="min-h-screen bg-rahaa-bg tech-mesh-bg flex flex-col justify-center items-center p-4 relative overflow-hidden font-tajawal" dir="rtl">
-      {/* Floating Top Controls: Single-Step Back & Theme Switcher */}
-      <div className="absolute top-5 left-5 right-5 z-20 flex items-center justify-between pointer-events-none">
-        <div className="pointer-events-auto">
-          <StepBackButton variant="compact" label="تراجع خطوة" />
-        </div>
-        <div className="pointer-events-auto">
-          <ThemeToggle />
-        </div>
+      {/* Floating Top Control: Theme Switcher */}
+      <div className="absolute top-5 left-5 z-20">
+        <ThemeToggle />
       </div>
 
       {/* Background Soft Brand Glows */}

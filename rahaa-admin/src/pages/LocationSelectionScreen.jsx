@@ -119,7 +119,7 @@ export const LocationSelectionScreen = () => {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate('/passenger')}
+            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/passenger'))}
             className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 transition-colors"
             title="الرجوع"
           >

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Home, Navigation, DollarSign, User, Car, Key, Truck, Bike } from 'lucide-react';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { StepBackButton } from '../common/StepBackButton';
@@ -42,11 +42,23 @@ const DRIVER_PORTAL_META = {
 
 export const DriverLayout = () => {
   const [isOnline, setIsOnline] = useState(true);
+  const location = useLocation();
   const currentUser = getCurrentUser();
   const driverService = getDriverPrimaryService(currentUser);
   const driverHomeUrl = getDriverPortalRoute(currentUser);
   const meta = DRIVER_PORTAL_META[driverService] || DRIVER_PORTAL_META.taxi;
   const ModeIcon = meta.icon;
+
+  const currentPath = (location.pathname || '').replace(/\/+$/, '');
+  const homePath = (driverHomeUrl || '').replace(/\/+$/, '');
+  const isDriverHome =
+    currentPath === '/driver' ||
+    currentPath === homePath ||
+    currentPath === '/driver/taxi' ||
+    currentPath === '/driver/rental' ||
+    currentPath === '/driver/truck' ||
+    currentPath === '/driver/motorcycle';
+  const showBackButton = !isDriverHome;
 
   return (
     <div className="min-h-screen bg-rahaa-bg tech-mesh-bg flex flex-col font-tajawal" dir="rtl">
@@ -134,9 +146,9 @@ export const DriverLayout = () => {
           </NavLink>
         </nav>
 
-        {/* Actions: Single-Step Back, Theme Switcher & Online Status Toggle */}
+        {/* Actions: Single-Step Back (only on sub-pages), Theme Switcher & Online Status Toggle */}
         <div className="flex items-center gap-2 sm:gap-2.5">
-          <StepBackButton variant="compact" label="تراجع" />
+          {showBackButton && <StepBackButton variant="compact" label="تراجع" />}
           <ThemeToggle />
           <button
             type="button"

@@ -1,9 +1,14 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { Menu, Search, Bell, MapPin, RefreshCw } from 'lucide-react';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { StepBackButton } from '../common/StepBackButton';
 
 export const Header = ({ onOpenSidebar, onRefresh }) => {
+  const location = useLocation();
+  const currentPath = (location.pathname || '').replace(/\/+$/, '');
+  const isAdminDashboard = currentPath === '/admin' || currentPath === '';
+  const showBackButton = !isAdminDashboard;
   return (
     <header className="h-20 bg-rahaa-card/90 backdrop-blur-xl border-b border-rahaa-border sticky top-0 z-30 px-4 lg:px-8 flex items-center justify-between gap-4 shadow-2xs">
       {/* Right Side (RTL): Drawer Toggle, Single-Step Back & Search Bar */}
@@ -16,8 +21,8 @@ export const Header = ({ onOpenSidebar, onRefresh }) => {
           <Menu className="w-6 h-6" />
         </button>
 
-        {/* Single-Step Back Button */}
-        <StepBackButton variant="compact" label="تراجع" />
+        {/* Single-Step Back Button (only in sub-pages) */}
+        {showBackButton && <StepBackButton variant="compact" label="تراجع" />}
 
         {/* Global Search Bar */}
         <div className="relative w-full hidden sm:block">

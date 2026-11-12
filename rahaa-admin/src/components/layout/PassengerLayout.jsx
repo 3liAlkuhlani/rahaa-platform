@@ -1,10 +1,14 @@
 import React from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Home, Car, Clock, MapPin, Bell, User, Key, Truck, Bike } from 'lucide-react';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { StepBackButton } from '../common/StepBackButton';
 
 export const PassengerLayout = () => {
+  const location = useLocation();
+  const currentPath = (location.pathname || '').replace(/\/+$/, '');
+  const isPassengerHome = currentPath === '/passenger' || currentPath === '';
+  const showBackButton = !isPassengerHome;
   return (
     <div className="min-h-screen bg-rahaa-bg tech-mesh-bg flex flex-col font-tajawal" dir="rtl">
       {/* Top Header (Without Profile or Logout icons as required) */}
@@ -146,9 +150,9 @@ export const PassengerLayout = () => {
           </NavLink>
         </nav>
 
-        {/* Actions: Single-Step Back, Theme Switcher & Notifications */}
+        {/* Actions: Single-Step Back (only in sub-pages), Theme Switcher & Notifications */}
         <div className="flex items-center gap-2">
-          <StepBackButton variant="compact" label="تراجع" />
+          {showBackButton && <StepBackButton variant="compact" label="تراجع" />}
           <ThemeToggle />
           <button
             type="button"
