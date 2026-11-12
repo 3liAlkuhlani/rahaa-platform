@@ -174,8 +174,8 @@ export const ActiveTripTracking = () => {
                 </span>
               </div>
             </div>
-            <div className="text-left font-mono font-bold text-xs text-slate-300">
-              40 كم/س
+            <div className="text-right font-tajawal font-bold text-xs text-slate-300">
+              ٤٠ كم/س
             </div>
           </div>
 
@@ -291,7 +291,7 @@ export const ActiveTripTracking = () => {
                     key={i}
                     className={`p-2.5 rounded-xl max-w-[85%] font-tajawal ${
                       msg.sender === 'driver'
-                        ? 'bg-rahaa-blue text-white mr-auto text-left'
+                        ? 'bg-rahaa-blue text-white mr-auto text-right'
                         : 'bg-rahaa-bg text-rahaa-navy ml-auto text-right'
                     }`}
                   >

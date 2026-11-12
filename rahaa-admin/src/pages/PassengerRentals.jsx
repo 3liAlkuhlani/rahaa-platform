@@ -329,7 +329,7 @@ export const PassengerRentals = () => {
                         موديل سنة {v.year} • {v.color || 'أبيض'}
                       </span>
                     </div>
-                    <div className="text-left">
+                    <div className="text-right">
                       <span className="font-cairo font-black text-lg text-amber-600">
                         {Number(v.daily_rate).toLocaleString()}
                       </span>

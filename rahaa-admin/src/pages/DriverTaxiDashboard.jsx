@@ -433,7 +433,7 @@ export const DriverTaxiDashboard = () => {
                     رقم المشوار: #{t.trip_number} • الراكب: {t.passenger?.name || 'عميل راحة'}
                   </div>
                 </div>
-                <div className="text-left">
+                <div className="text-right">
                   <div className="font-cairo font-bold text-rahaa-emerald">
                     {Number(t.fare || 0).toLocaleString()} ر.ي
                   </div>

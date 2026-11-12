@@ -97,11 +97,18 @@
 }
 
 @layer base {
+  *,
+  *::before,
+  *::after {
+    direction: rtl;
+  }
+
   html,
   body,
   #root {
-    direction: rtl;
-    text-align: right;
+    direction: rtl !important;
+    text-align: right !important;
+    unicode-bidi: embed;
   }
 
   body {
@@ -111,12 +118,18 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     transition: background-color 0.2s ease, color 0.2s ease;
+    direction: rtl !important;
+    text-align: right !important;
+  }
+
+  h1, h2, h3, h4, h5, h6,
+  p, span, label, div, a, button, li, dt, dd {
+    text-align: right;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Cairo', sans-serif;
     letter-spacing: -0.01em;
-    text-align: right;
   }
 
   input,
@@ -125,17 +138,22 @@
   table,
   th,
   td {
-    direction: rtl;
-    text-align: right;
+    direction: rtl !important;
+    text-align: right !important;
   }
 }
 
-/* Global RTL Enforcement across all screens & components */
+/* Global Strict RTL Enforcement across all screens & components */
 [dir="ltr"],
 .dir-ltr,
 .text-left {
   direction: rtl !important;
   text-align: right !important;
+}
+
+/* Ensure flex items with text start from the right */
+.flex:not(.justify-center):not(.justify-between):not(.justify-around):not(.justify-end) {
+  text-align: right;
 }
 
 /* Dark Mode Automatic Surface & Typography Harmonization */

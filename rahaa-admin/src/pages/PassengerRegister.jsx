@@ -179,14 +179,14 @@ export const PassengerRegister = () => {
             <div className="relative">
               <input
                 type="tel"
-                dir="ltr"
+                dir="rtl"
                 value={phone}
                 onChange={(e) => {
                   setPhone(e.target.value);
                   if (errors.phone) setErrors({ ...errors, phone: null });
                 }}
-                placeholder="770 000 000"
-                className={`w-full pl-16 pr-10 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-mono text-left tracking-wider ${
+                placeholder="٧٧٠ ٠٠٠ ٠٠٠"
+                className={`w-full pl-16 pr-10 py-3 bg-gray-50/70 border rounded-xl text-sm focus:outline-none transition-all font-tajawal text-right tracking-wider ${
                   errors.phone 
                     ? 'border-red-400 focus:border-red-500 bg-red-50/30' 
                     : 'border-gray-200 focus:border-rahaa-navy focus:bg-white'
