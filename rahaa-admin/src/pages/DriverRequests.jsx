@@ -112,7 +112,14 @@ export const DriverRequests = () => {
       if (res?.success) {
         setActionSuccess(res.message || 'تم قبول الطلب بنجاح');
         await refreshRequests(true);
-        setActiveTab('accepted');
+        const nextRoute =
+          item.request_type === 'trip'
+            ? '/driver/active-trip'
+            : getDriverPortalRoute(currentUser);
+        navigate(nextRoute, {
+          replace: false,
+          state: { acceptedRequest: res.request || item },
+        });
       }
     } catch (err) {
       setActionError(err?.message || 'تعذر قبول الطلب، ربما تم قبوله من سائق آخر');
@@ -485,3 +492,4 @@ export const DriverRequests = () => {
     </div>
   );
 };
+

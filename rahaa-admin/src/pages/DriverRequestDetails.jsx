@@ -92,6 +92,14 @@ export const DriverRequestDetails = () => {
         setRequestData(res.request);
         setActionMsg(res.message || 'تم قبول الرحلة بنجاح');
         await refreshRequests(true);
+        const nextRoute =
+          requestData.request_type === 'trip'
+            ? '/driver/active-trip'
+            : getDriverPortalRoute(currentUser);
+        navigate(nextRoute, {
+          replace: true,
+          state: { acceptedRequest: res.request || requestData },
+        });
       }
     } catch (err) {
       setErrorMsg(err?.message || 'تعذر قبول الطلب');
@@ -438,3 +446,4 @@ export const DriverRequestDetails = () => {
     </div>
   );
 };
+

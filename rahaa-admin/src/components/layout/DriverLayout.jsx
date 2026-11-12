@@ -41,7 +41,25 @@ const DRIVER_PORTAL_META = {
 };
 
 export const DriverLayout = () => {
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnlineState] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('rahaa_driver_online');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+  const setIsOnline = useCallback((val) => {
+    setIsOnlineState((prev) => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      try {
+        sessionStorage.setItem('rahaa_driver_online', String(next));
+      } catch {
+        // Ignore storage errors
+      }
+      return next;
+    });
+  }, []);
   const location = useLocation();
   const navigate = useNavigate();
   const currentUser = getCurrentUser();

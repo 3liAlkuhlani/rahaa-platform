@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   Lock,
   AlertCircle,
@@ -118,6 +118,7 @@ const DEMO_ACCOUNTS = [
 
 export const Login = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [userRole, setUserRole] = useState('passenger'); // 'passenger' or 'driver'
   const [driverServiceType, setDriverServiceType] = useState('taxi'); // 'taxi' | 'rental' | 'truck' | 'motorcycle'
   const [suggestedOwnedService, setSuggestedOwnedService] = useState(null);
@@ -193,14 +194,24 @@ export const Login = ({ onLoginSuccess }) => {
 
       if (onLoginSuccess) onLoginSuccess(res.user);
 
+      const requestedPath = location.state?.from?.pathname || '';
+
       if (res.user.role === 'admin' || res.user.role === 'supervisor') {
-        navigate(getAdminDefaultRoute(res.user), { replace: true });
+        const dest = requestedPath.startsWith('/admin')
+          ? requestedPath
+          : getAdminDefaultRoute(res.user);
+        navigate(dest, { replace: true });
       } else if (res.user.role === 'driver') {
-        // Redirect driver directly to the dedicated page of the vehicle they own
-        const targetDriverRoute = getDriverPortalRoute(res.user);
+        // Redirect driver to deep link if valid for /driver, otherwise their vehicle portal
+        const targetDriverRoute = requestedPath.startsWith('/driver')
+          ? requestedPath
+          : getDriverPortalRoute(res.user);
         navigate(targetDriverRoute, { replace: true });
       } else {
-        navigate('/passenger', { replace: true });
+        const targetPassengerRoute = requestedPath.startsWith('/passenger')
+          ? requestedPath
+          : '/passenger';
+        navigate(targetPassengerRoute, { replace: true });
       }
     } catch (err) {
       setErrorMsg(err.message || 'فشل تسجيل الدخول. يرجى التحقق من صحة البيانات');

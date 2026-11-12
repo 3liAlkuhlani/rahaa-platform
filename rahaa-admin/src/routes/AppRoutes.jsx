@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import {
   getToken,
   getCurrentUser,
@@ -63,12 +63,43 @@ import { AdminLogin } from '../pages/AdminLogin';
  * Strictly blocks Passengers and Drivers from entering the Admin Dashboard,
  * and enforces per-route RBAC permissions for Supervisors.
  */
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [pathname]);
+  return null;
+};
+
+const SmartFallbackRoute = () => {
+  const location = useLocation();
+  const token = getToken();
+  const user = getCurrentUser();
+
+  if (token && user) {
+    if (isAdminOrSupervisor(user)) {
+      return <Navigate to={getAdminDefaultRoute(user)} replace />;
+    }
+    if (user.role === 'driver') {
+      return <Navigate to={getDriverPortalRoute(user)} replace />;
+    }
+    return <Navigate to="/passenger" replace />;
+  }
+
+  const path = location.pathname || '';
+  if (path.startsWith('/admin') || path.startsWith('/supervisor')) {
+    return <Navigate to="/admin/login" replace />;
+  }
+  return <Navigate to="/login" replace />;
+};
+
 const AdminProtectedRoute = ({ children, requiredPermission = null, adminOnly = false }) => {
+  const location = useLocation();
   const token = getToken();
   const user = getCurrentUser();
 
   if (!token || !user) {
-    return <Navigate to="/admin/login" replace />;
+    return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 
   if (user.role === 'passenger') {
@@ -98,11 +129,12 @@ const AdminProtectedRoute = ({ children, requiredPermission = null, adminOnly = 
  * Guard for Passenger Portal
  */
 const PassengerProtectedRoute = ({ children }) => {
+  const location = useLocation();
   const token = getToken();
   const user = getCurrentUser();
 
   if (!token || !user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (isAdminOrSupervisor(user)) {
@@ -120,11 +152,12 @@ const PassengerProtectedRoute = ({ children }) => {
  * Guard for Driver Portal
  */
 const DriverProtectedRoute = ({ children }) => {
+  const location = useLocation();
   const token = getToken();
   const user = getCurrentUser();
 
   if (!token || !user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (isAdminOrSupervisor(user)) {
@@ -158,6 +191,7 @@ const DriverServiceGuard = ({ allowedService, children }) => {
 export const AppRoutes = () => {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         {/* ================= Splash Screen (Root Entry) ================= */}
         <Route path="/" element={<SplashScreen />} />
@@ -336,7 +370,7 @@ export const AppRoutes = () => {
         </Route>
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<SmartFallbackRoute />} />
       </Routes>
     </BrowserRouter>
   );

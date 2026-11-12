@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RotateCcw, ArrowRight } from 'lucide-react';
-import { getCurrentUser, getDriverPortalRoute } from '../../services/api';
+import { getCurrentUser, getDriverPortalRoute, getAdminDefaultRoute } from '../../services/api';
 
 /**
  * Global registry so any active screen with internal multi-step state
@@ -39,27 +39,26 @@ export const triggerSingleStepBack = (navigate, location, customHandler = null) 
   const user = getCurrentUser();
   const driverRoot = getDriverPortalRoute(user);
 
-  // If history exists beyond initial entry, go back 1 step to the exact previous screen
-  const hasHistory =
-    (window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0) ||
-    (typeof window.history.length === 'number' && window.history.length > 1);
+  // If in-app history exists beyond initial entry, go back 1 step to the exact previous screen
+  const hasInAppHistory =
+    Boolean(window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0);
 
-  if (hasHistory) {
+  if (hasInAppHistory) {
     navigate(-1);
     return;
   }
 
-  // Fallback hierarchy (1 level up) if opened directly in a new tab
+  // Fallback hierarchy (1 level up) if opened directly via deep link in a new tab
   if (path.startsWith('/passenger/') && path !== '/passenger') {
-    navigate('/passenger');
+    navigate('/passenger', { replace: true });
   } else if (path.startsWith('/driver/') && path !== driverRoot) {
-    navigate(driverRoot);
+    navigate(driverRoot, { replace: true });
   } else if (path.startsWith('/admin/') && path !== '/admin') {
-    navigate('/admin');
+    navigate(getAdminDefaultRoute(user), { replace: true });
   } else if (path === '/register' || path === '/register/passenger' || path === '/register/driver') {
-    navigate('/login');
+    navigate('/login', { replace: true });
   } else {
-    navigate(-1);
+    navigate('/', { replace: true });
   }
 };
 

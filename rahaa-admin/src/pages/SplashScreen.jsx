@@ -1,6 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, getToken, getCurrentUser, setCurrentUser, removeToken, removeCurrentUser } from '../services/api';
+import {
+  api,
+  getToken,
+  getCurrentUser,
+  setCurrentUser,
+  removeToken,
+  removeCurrentUser,
+  isAdminOrSupervisor,
+  getAdminDefaultRoute,
+  getDriverPortalRoute,
+} from '../services/api';
 import { ThemeToggle } from '../components/common/ThemeToggle';
 
 export const SplashScreen = () => {
@@ -42,10 +52,10 @@ export const SplashScreen = () => {
         setProgress(100);
 
         if (resolvedUser && getToken()) {
-          if (resolvedUser.role === 'admin') {
-            navigate('/admin', { replace: true });
+          if (isAdminOrSupervisor(resolvedUser)) {
+            navigate(getAdminDefaultRoute(resolvedUser), { replace: true });
           } else if (resolvedUser.role === 'driver') {
-            navigate('/driver', { replace: true });
+            navigate(getDriverPortalRoute(resolvedUser), { replace: true });
           } else {
             navigate('/passenger', { replace: true });
           }

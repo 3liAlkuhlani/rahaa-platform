@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   ShieldCheck,
   Lock,
@@ -23,6 +23,7 @@ import { ThemeToggle } from '../components/common/ThemeToggle';
 
 export const AdminLogin = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -67,7 +68,11 @@ export const AdminLogin = () => {
       setToken(res.token);
       setCurrentUser(res.user);
       setSuccessMsg('تم التحقق من الصلاحيات بنجاح، جاري فتح لوحة التحكم...');
-      navigate(getAdminDefaultRoute(res.user), { replace: true });
+      const requestedPath = location.state?.from?.pathname || '';
+      const dest = requestedPath.startsWith('/admin')
+        ? requestedPath
+        : getAdminDefaultRoute(res.user);
+      navigate(dest, { replace: true });
     } catch (err) {
       setErrorMsg(err?.message || 'بيانات الدخول غير صحيحة أو تعذر الاتصال بالخادم');
     } finally {
