@@ -373,19 +373,19 @@ export const DriverTruckDashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border">
+          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center flex flex-col items-center justify-center shadow-2xs">
             <span className="text-rahaa-text-subtle block mb-1">طراز ونوع الشاحنة</span>
             <strong className="font-cairo text-sm text-rahaa-navy">
               {myTrucks[0] ? `${myTrucks[0].make} ${myTrucks[0].model}` : 'إيسوزو دينا نقل عفش وبضائع'}
             </strong>
           </div>
-          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border">
+          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center flex flex-col items-center justify-center shadow-2xs">
             <span className="text-rahaa-text-subtle block mb-1">رقم لوحة الشاحنة</span>
             <strong className="font-cairo text-sm text-rahaa-navy">
               {myTrucks[0]?.plate_number || 'صنعاء نقل / 55102'}
             </strong>
           </div>
-          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border">
+          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center flex flex-col items-center justify-center shadow-2xs">
             <span className="text-rahaa-text-subtle block mb-1">الحمولة القصوى المصرحة</span>
             <strong className="font-cairo text-sm text-emerald-700">
               {Number(myTrucks[0]?.max_payload_kg || 4500).toLocaleString()} كجم (4.5 طن)

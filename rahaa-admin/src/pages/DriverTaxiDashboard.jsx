@@ -382,19 +382,19 @@ export const DriverTaxiDashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border">
+          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center flex flex-col items-center justify-center shadow-2xs">
             <span className="text-rahaa-text-subtle block mb-1">طراز سيارة الأجرة</span>
             <strong className="font-cairo text-sm text-rahaa-navy">
               {currentUser?.profile?.vehicle_model || myVehicles[0]?.model || 'تويوتا كامري 2022'}
             </strong>
           </div>
-          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border">
+          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center flex flex-col items-center justify-center shadow-2xs">
             <span className="text-rahaa-text-subtle block mb-1">رقم اللوحة المعدنية</span>
             <strong className="font-cairo text-sm text-rahaa-navy">
               {currentUser?.profile?.vehicle_plate || myVehicles[0]?.plate_number || 'أمانة / 44821'}
             </strong>
           </div>
-          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border">
+          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center flex flex-col items-center justify-center shadow-2xs">
             <span className="text-rahaa-text-subtle block mb-1">فئة التاكسي</span>
             <strong className="font-cairo text-sm text-rahaa-blue">
               تاكسي راحة المميز (Comfort)

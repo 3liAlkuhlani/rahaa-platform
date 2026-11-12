@@ -371,19 +371,19 @@ export const DriverMotorcycleDashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border">
+          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center flex flex-col items-center justify-center shadow-2xs">
             <span className="text-rahaa-text-subtle block mb-1">طراز الدراجة النارية</span>
             <strong className="font-cairo text-sm text-rahaa-navy">
               {myMotos[0] ? `${myMotos[0].make} ${myMotos[0].model}` : 'سانيانغ سكوتر ديلفري 150cc'}
             </strong>
           </div>
-          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border">
+          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center flex flex-col items-center justify-center shadow-2xs">
             <span className="text-rahaa-text-subtle block mb-1">رقم لوحة الدراجة</span>
             <strong className="font-cairo text-sm text-rahaa-navy">
               {myMotos[0]?.plate_number || 'صنعاء دراجة / 9901'}
             </strong>
           </div>
-          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border">
+          <div className="p-4 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center flex flex-col items-center justify-center shadow-2xs">
             <span className="text-rahaa-text-subtle block mb-1">نطاق الخدمة</span>
             <strong className="font-cairo text-sm text-cyan-700">
               توصيل فوري للطرود ومشاوير الركاب

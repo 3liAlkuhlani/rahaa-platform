@@ -76,21 +76,21 @@ export const DriverProfile = () => {
           </div>
 
           <div className="space-y-3 text-xs">
-            <div className="flex items-center justify-between p-3 rounded-xl bg-rahaa-bg border border-rahaa-border">
+            <div className="flex items-center justify-center gap-3 p-3.5 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center shadow-2xs">
               <span className="text-rahaa-text-muted font-tajawal">طراز السيارة:</span>
-              <span className="font-cairo font-bold text-rahaa-navy">
+              <span className="font-cairo font-bold text-sm text-rahaa-navy">
                 {currentUser?.profile?.vehicle_model || 'تويوتا كورولا 2022'}
               </span>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-xl bg-rahaa-bg border border-rahaa-border">
+            <div className="flex items-center justify-center gap-3 p-3.5 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center shadow-2xs">
               <span className="text-rahaa-text-muted font-tajawal">رقم اللوحة:</span>
-              <span className="font-mono font-bold text-rahaa-navy">{vehiclePlate}</span>
+              <span className="font-mono font-bold text-sm text-rahaa-navy">{vehiclePlate}</span>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-xl bg-rahaa-bg border border-rahaa-border">
+            <div className="flex items-center justify-center gap-3 p-3.5 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center shadow-2xs">
               <span className="text-rahaa-text-muted font-tajawal">الفئة المعتمدة:</span>
-              <span className="font-cairo font-bold text-rahaa-blue bg-rahaa-blue-light px-2.5 py-0.5 rounded-full">
+              <span className="font-cairo font-bold text-xs text-rahaa-blue bg-rahaa-blue-light px-3 py-1 rounded-full">
                 راحة بلس
               </span>
             </div>
@@ -109,23 +109,23 @@ export const DriverProfile = () => {
           </div>
 
           <div className="space-y-3 text-xs">
-            <div className="flex items-center justify-between p-3 rounded-xl bg-rahaa-bg border border-rahaa-border">
-              <span className="font-cairo font-bold text-rahaa-navy">رخصة القيادة المهنية</span>
-              <span className="text-[10px] px-2.5 py-1 rounded-full font-cairo font-bold bg-rahaa-emerald-bg text-rahaa-emerald">
+            <div className="flex items-center justify-center gap-3 p-3.5 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center shadow-2xs">
+              <span className="font-cairo font-bold text-rahaa-navy">رخصة القيادة المهنية:</span>
+              <span className="text-[11px] px-3 py-0.5 rounded-full font-cairo font-bold bg-rahaa-emerald-bg text-rahaa-emerald">
                 سارية ومطابقة
               </span>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-xl bg-rahaa-bg border border-rahaa-border">
-              <span className="font-cairo font-bold text-rahaa-navy">ملكية السيارة</span>
-              <span className="text-[10px] px-2.5 py-1 rounded-full font-cairo font-bold bg-rahaa-emerald-bg text-rahaa-emerald">
+            <div className="flex items-center justify-center gap-3 p-3.5 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center shadow-2xs">
+              <span className="font-cairo font-bold text-rahaa-navy">ملكية السيارة:</span>
+              <span className="text-[11px] px-3 py-0.5 rounded-full font-cairo font-bold bg-rahaa-emerald-bg text-rahaa-emerald">
                 معتمدة
               </span>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-xl bg-rahaa-bg border border-rahaa-border">
-              <span className="font-cairo font-bold text-rahaa-navy">الفحص الفني الدوري</span>
-              <span className="text-[10px] px-2.5 py-1 rounded-full font-cairo font-bold bg-rahaa-emerald-bg text-rahaa-emerald">
+            <div className="flex items-center justify-center gap-3 p-3.5 rounded-2xl bg-rahaa-bg border border-rahaa-border text-center shadow-2xs">
+              <span className="font-cairo font-bold text-rahaa-navy">الفحص الفني الدوري:</span>
+              <span className="text-[11px] px-3 py-0.5 rounded-full font-cairo font-bold bg-rahaa-emerald-bg text-rahaa-emerald">
                 صالح
               </span>
             </div>
