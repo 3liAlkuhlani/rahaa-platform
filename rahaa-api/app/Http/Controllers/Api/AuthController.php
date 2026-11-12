@@ -94,6 +94,11 @@ class AuthController extends Controller
                   ->orWhere('username', $rawIdentifier);
         })->first();
 
+        // Admin fallback: support both 770000000, 775229000, and 'علي نشوان'
+        if (!$user && (in_array($phone, ['770000000', '775229000']) || in_array($rawIdentifier, ['علي نشوان', 'admin']))) {
+            $user = User::where('role', 'admin')->first();
+        }
+
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json([
                 'success' => false,
