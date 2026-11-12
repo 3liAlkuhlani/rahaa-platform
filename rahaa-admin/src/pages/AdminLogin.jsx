@@ -198,3 +198,4 @@ export const AdminLogin = () => {
     </div>
   );
 };
+

@@ -135,9 +135,27 @@ class TripController extends Controller
             ], 403);
         }
 
+        // Enforce taxi service eligibility
+        $approvedServices = \App\Models\DriverService::where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->pluck('service_type')
+            ->toArray();
+        if (!empty($approvedServices) && !in_array('taxi', $approvedServices, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'غير مصرح لك باستقبال طلبات التاكسي لأن حسابك غير معتمد لخدمة التاكسي',
+            ], 403);
+        }
+
+        $rejectedTripIds = \App\Models\DriverRequestRejection::where('driver_id', $user->id)
+            ->where('request_type', 'trip')
+            ->pluck('request_id')
+            ->toArray();
+
         $trips = Trip::with('passenger:id,name,phone')
             ->where('status', 'requested')
             ->whereNull('driver_id')
+            ->when(!empty($rejectedTripIds), fn ($q) => $q->whereNotIn('id', $rejectedTripIds))
             ->latest()
             ->paginate(15);
 
@@ -166,6 +184,17 @@ class TripController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'يجب اعتماد حسابك من قبل الإدارة أولاً لتتمكن من قبول الرحلات',
+            ], 403);
+        }
+
+        $approvedServices = \App\Models\DriverService::where('user_id', $user->id)
+            ->where('status', 'approved')
+            ->pluck('service_type')
+            ->toArray();
+        if (!empty($approvedServices) && !in_array('taxi', $approvedServices, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'غير مصرح لك بقبول طلبات التاكسي لأن حسابك غير معتمد لخدمة التاكسي',
             ], 403);
         }
 

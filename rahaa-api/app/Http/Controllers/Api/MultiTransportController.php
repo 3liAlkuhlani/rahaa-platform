@@ -331,9 +331,15 @@ class MultiTransportController extends Controller
             ]);
         }
 
+        $rejectedCargoIds = \App\Models\DriverRequestRejection::where('driver_id', $user->id)
+            ->where('request_type', 'cargo')
+            ->pluck('request_id')
+            ->toArray();
+
         $orders = CargoRequest::whereIn('service_type', $approvedServices)
             ->where('status', 'pending')
             ->whereNull('driver_id')
+            ->when(!empty($rejectedCargoIds), fn ($q) => $q->whereNotIn('id', $rejectedCargoIds))
             ->with('sender:id,name,phone')
             ->latest()
             ->get();
@@ -363,33 +369,46 @@ class MultiTransportController extends Controller
     {
         $user = $request->user();
 
-        $order = CargoRequest::where('id', $id)
-            ->where('status', 'pending')
-            ->whereNull('driver_id')
-            ->firstOrFail();
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($id, $user) {
+            $order = CargoRequest::where('id', $id)->lockForUpdate()->first();
 
-        // Verify driver has approved service for this order
-        $hasService = DriverService::where('user_id', $user->id)
-            ->where('service_type', $order->service_type)
-            ->where('status', 'approved')
-            ->exists();
+            if (!$order) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الطلب غير موجود',
+                ], 404);
+            }
 
-        if (!$hasService) {
+            // Verify driver has approved service for this order
+            $hasService = DriverService::where('user_id', $user->id)
+                ->where('service_type', $order->service_type)
+                ->where('status', 'approved')
+                ->exists();
+
+            if (!$hasService) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'غير مصرح لك بقبول هذا النوع من الطلبات لعدم اعتماد هذه الخدمة في حسابك',
+                ], 403);
+            }
+
+            if ($order->status !== 'pending' || $order->driver_id !== null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'عذراً! تم قبول هذا الطلب من سائق آخر أو لم يعد متاحاً',
+                ], 409);
+            }
+
+            $order->driver_id = $user->id;
+            $order->status = 'accepted';
+            $order->save();
+
             return response()->json([
-                'success' => false,
-                'message' => 'غير مصرح لك بقبول هذا النوع من الطلبات لعدم اعتماد هذه الخدمة في حسابك',
-            ], 403);
-        }
-
-        $order->driver_id = $user->id;
-        $order->status = 'accepted';
-        $order->save();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'تم قبول الطلب بنجاح ويمكنك الآن بدء التوجه لموقع التحميل',
-            'order' => $order->load(['sender:id,name,phone', 'driver:id,name,phone']),
-        ]);
+                'success' => true,
+                'message' => 'تم قبول الطلب بنجاح ويمكنك الآن بدء التوجه لموقع التحميل',
+                'order' => $order->load(['sender:id,name,phone', 'driver:id,name,phone']),
+            ]);
+        });
     }
 
     /**

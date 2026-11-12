@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\TripController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\MultiTransportController;
 use App\Http\Controllers\Api\AdminTransportController;
+use App\Http\Controllers\Api\DriverRequestController;
 
 /*
 |--------------------------------------------------------------------------
@@ -79,6 +80,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/accept', [TripController::class, 'acceptTrip']);
         Route::post('/{id}/status', [TripController::class, 'updateStatus']);
         Route::post('/{id}/rate', [TripController::class, 'rateTrip']);
+    });
+
+    // Driver Unified My Requests Portal (Taxi, Motorcycle, Truck, Rental)
+    Route::prefix('driver/requests')->group(function () {
+        Route::get('/', [DriverRequestController::class, 'index']);
+        Route::get('/{type}/{id}', [DriverRequestController::class, 'show'])->whereIn('type', ['trip', 'cargo', 'rental'])->whereNumber('id');
+        Route::post('/{type}/{id}/accept', [DriverRequestController::class, 'accept'])->whereIn('type', ['trip', 'cargo', 'rental'])->whereNumber('id');
+        Route::post('/{type}/{id}/reject', [DriverRequestController::class, 'reject'])->whereIn('type', ['trip', 'cargo', 'rental'])->whereNumber('id');
     });
 
     // Admin & Supervisor Portal Routes (Protected by EnsureAdminRole + Granular Permission RBAC)

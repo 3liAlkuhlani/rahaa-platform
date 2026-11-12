@@ -411,6 +411,19 @@ export const api = {
     body: JSON.stringify({ rating, review }),
   }),
 
+  // Driver Unified My Requests
+  getDriverRequests: (tab = 'all') =>
+    request(`/driver/requests?tab=${encodeURIComponent(tab)}`, { method: 'GET' }),
+  getDriverRequestDetails: (type, id) =>
+    request(`/driver/requests/${type}/${id}`, { method: 'GET' }),
+  acceptDriverRequest: (type, id) =>
+    request(`/driver/requests/${type}/${id}/accept`, { method: 'POST' }),
+  rejectDriverRequest: (type, id, reason = '') =>
+    request(`/driver/requests/${type}/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
   // Admin Transport Management
   getAdminVehicles: (serviceType = 'all', status = 'all') =>
     request(`/admin/transport/vehicles?service_type=${serviceType}&status=${status}`, { method: 'GET' }),

@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Home, Navigation, DollarSign, User, Car, Key, Truck, Bike } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Home, Navigation, DollarSign, User, Car, Key, Truck, Bike, ClipboardList, BellRing, X } from 'lucide-react';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { StepBackButton } from '../common/StepBackButton';
-import { getCurrentUser, getDriverPrimaryService, getDriverPortalRoute } from '../../services/api';
+import { api, getCurrentUser, getDriverPrimaryService, getDriverPortalRoute } from '../../services/api';
 
 const DRIVER_PORTAL_META = {
   taxi: {
@@ -43,11 +43,89 @@ const DRIVER_PORTAL_META = {
 export const DriverLayout = () => {
   const [isOnline, setIsOnline] = useState(true);
   const location = useLocation();
+  const navigate = useNavigate();
   const currentUser = getCurrentUser();
   const driverService = getDriverPrimaryService(currentUser);
   const driverHomeUrl = getDriverPortalRoute(currentUser);
   const meta = DRIVER_PORTAL_META[driverService] || DRIVER_PORTAL_META.taxi;
   const ModeIcon = meta.icon;
+
+  // Live Driver Requests State & Real-Time Polling
+  const [requestsPayload, setRequestsPayload] = useState({
+    requests: [],
+    counts: { new: 0, accepted: 0, previous: 0, total: 0 },
+    driver_services: [],
+  });
+  const [requestsLoading, setRequestsLoading] = useState(true);
+  const [requestsError, setRequestsError] = useState('');
+  const [newAlert, setNewAlert] = useState(null);
+  const seenUidsRef = useRef(new Set());
+  const initializedRef = useRef(false);
+
+  const refreshRequests = useCallback(async (silent = false) => {
+    if (!silent) {
+      setRequestsLoading(true);
+    }
+    try {
+      const res = await api.getDriverRequests('all');
+      if (res?.success) {
+        const list = Array.isArray(res.requests) ? res.requests : [];
+        const newOnly = list.filter((item) => item.request_status === 'new');
+
+        if (!initializedRef.current) {
+          newOnly.forEach((item) => seenUidsRef.current.add(item.uid));
+          initializedRef.current = true;
+        } else {
+          const fresh = newOnly.filter((item) => !seenUidsRef.current.has(item.uid));
+          if (fresh.length > 0) {
+            fresh.forEach((item) => seenUidsRef.current.add(item.uid));
+            setNewAlert(fresh[0]);
+          }
+        }
+
+        setRequestsPayload({
+          requests: list,
+          counts: res.counts || { new: newOnly.length, accepted: 0, previous: 0, total: list.length },
+          driver_services: res.driver_services || [],
+        });
+        setRequestsError('');
+      }
+    } catch (err) {
+      setRequestsError(err?.message || 'تعذر الاتصال بالخادم لجلب الطلبات');
+    } finally {
+      setRequestsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshRequests(false);
+  }, [refreshRequests]);
+
+  useEffect(() => {
+    if (!isOnline) return undefined;
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refreshRequests(true);
+      }
+    }, 4000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshRequests(true);
+      }
+    };
+    const handleOnline = () => refreshRequests(true);
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [isOnline, refreshRequests]);
+
+  const newRequestsCount = requestsPayload.counts?.new || 0;
 
   const currentPath = (location.pathname || '').replace(/\/+$/, '');
   const homePath = (driverHomeUrl || '').replace(/\/+$/, '');
@@ -99,6 +177,25 @@ export const DriverLayout = () => {
           >
             <Home className="w-4 h-4" />
             <span>{meta.homeLabel}</span>
+          </NavLink>
+
+          <NavLink
+            to="/driver/requests"
+            className={({ isActive }) =>
+              `h-10 px-4 rounded-xl text-xs font-cairo font-bold transition-all flex items-center gap-2 relative ${
+                isActive
+                  ? meta.activeNavClass
+                  : 'text-rahaa-text-muted hover:bg-rahaa-blue-soft hover:text-rahaa-blue'
+              }`
+            }
+          >
+            <ClipboardList className="w-4 h-4" />
+            <span>طلباتي</span>
+            {newRequestsCount > 0 && (
+              <span className="px-1.5 py-0.5 min-w-[20px] text-center rounded-full text-[10px] font-black bg-[#EE9224] text-white">
+                {newRequestsCount}
+              </span>
+            )}
           </NavLink>
 
           {driverService === 'taxi' && (
@@ -165,61 +262,138 @@ export const DriverLayout = () => {
         </div>
       </header>
 
+      {/* In-App Real-Time New Request Notification */}
+      {newAlert && (
+        <div className="fixed top-22 left-4 right-4 sm:left-6 sm:right-auto sm:w-96 z-50 bg-rahaa-card border-2 border-[#EE9224] rounded-2xl shadow-2xl p-3.5 flex items-start gap-3 animate-in fade-in slide-in-from-top-3">
+          <div className="w-10 h-10 rounded-xl bg-[#FEF5E8] text-[#D67E16] flex items-center justify-center shrink-0">
+            <BellRing className="w-5 h-5 animate-bounce" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-cairo font-black text-xs text-rahaa-navy">
+              طلب {newAlert.service_label} جديد!
+            </p>
+            <p className="text-[11px] text-rahaa-text-muted truncate mt-0.5">
+              {newAlert.customer?.name || 'عميل'} • {newAlert.pickup_name}
+            </p>
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = newAlert;
+                  setNewAlert(null);
+                  navigate(`/driver/requests/${target.request_type}/${target.id}`);
+                }}
+                className="px-3 py-1 rounded-lg bg-rahaa-blue text-white text-[11px] font-bold hover:opacity-90"
+              >
+                عرض التفاصيل
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewAlert(null);
+                  navigate('/driver/requests');
+                }}
+                className="px-2.5 py-1 rounded-lg bg-rahaa-bg text-rahaa-navy text-[11px] font-bold border border-rahaa-border"
+              >
+                كل الطلبات
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setNewAlert(null)}
+            className="text-rahaa-text-subtle hover:text-rahaa-navy p-1"
+            aria-label="إغلاق الإشعار"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <main className="flex-1 pb-20 md:pb-8">
-        <Outlet context={{ isOnline, setIsOnline, driverService }} />
+        <Outlet
+          context={{
+            isOnline,
+            setIsOnline,
+            driverService,
+            requestsPayload,
+            requestsLoading,
+            requestsError,
+            refreshRequests,
+          }}
+        />
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-rahaa-card border-t border-rahaa-border flex items-center justify-around z-40 px-2 shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-rahaa-card border-t border-rahaa-border flex items-center justify-around z-40 px-1 shadow-lg">
         <NavLink
           to={driverHomeUrl}
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
+            `flex flex-col items-center justify-center py-1 px-1.5 sm:px-3 rounded-xl transition-all ${
               isActive ? 'text-rahaa-blue font-bold' : 'text-rahaa-text-subtle font-medium'
             }`
           }
         >
           <Home className="w-5 h-5 mb-0.5" />
-          <span className="text-[11px] font-cairo">بوابتك</span>
+          <span className="text-[10px] sm:text-[11px] font-cairo whitespace-nowrap">بوابتك</span>
+        </NavLink>
+
+        <NavLink
+          to="/driver/requests"
+          className={({ isActive }) =>
+            `relative flex flex-col items-center justify-center py-1 px-1.5 sm:px-3 rounded-xl transition-all ${
+              isActive ? 'text-rahaa-blue font-bold' : 'text-rahaa-text-subtle font-medium'
+            }`
+          }
+        >
+          <div className="relative">
+            <ClipboardList className="w-5 h-5 mb-0.5" />
+            {newRequestsCount > 0 && (
+              <span className="absolute -top-1.5 -left-2 min-w-[16px] h-4 px-1 rounded-full bg-[#EE9224] text-white text-[9px] font-black flex items-center justify-center leading-none shadow-xs">
+                {newRequestsCount > 99 ? '99+' : newRequestsCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] sm:text-[11px] font-cairo whitespace-nowrap">طلباتي</span>
         </NavLink>
 
         {driverService === 'taxi' && (
           <NavLink
             to="/driver/active-trip"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
+              `flex flex-col items-center justify-center py-1 px-1.5 sm:px-3 rounded-xl transition-all ${
                 isActive ? 'text-rahaa-blue font-bold' : 'text-rahaa-text-subtle font-medium'
               }`
             }
           >
             <Navigation className="w-5 h-5 mb-0.5" />
-            <span className="text-[11px] font-cairo">الخريطة</span>
+            <span className="text-[10px] sm:text-[11px] font-cairo whitespace-nowrap">الخريطة</span>
           </NavLink>
         )}
 
         <NavLink
           to="/driver/earnings"
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
+            `flex flex-col items-center justify-center py-1 px-1.5 sm:px-3 rounded-xl transition-all ${
               isActive ? 'text-rahaa-blue font-bold' : 'text-rahaa-text-subtle font-medium'
             }`
           }
         >
           <DollarSign className="w-5 h-5 mb-0.5" />
-          <span className="text-[11px] font-cairo">الأرباح</span>
+          <span className="text-[10px] sm:text-[11px] font-cairo whitespace-nowrap">الأرباح</span>
         </NavLink>
 
         <NavLink
           to="/driver/profile"
           className={({ isActive }) =>
-            `flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
+            `flex flex-col items-center justify-center py-1 px-1.5 sm:px-3 rounded-xl transition-all ${
               isActive ? 'text-rahaa-blue font-bold' : 'text-rahaa-text-subtle font-medium'
             }`
           }
         >
           <User className="w-5 h-5 mb-0.5" />
-          <span className="text-[11px] font-cairo">حسابي</span>
+          <span className="text-[10px] sm:text-[11px] font-cairo whitespace-nowrap">حسابي</span>
         </NavLink>
       </nav>
     </div>

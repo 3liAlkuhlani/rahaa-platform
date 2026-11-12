@@ -41,6 +41,8 @@ import { DriverMotorcycleDashboard } from '../pages/DriverMotorcycleDashboard';
 import { ActiveTripTracking } from '../pages/ActiveTripTracking';
 import { DriverEarnings } from '../pages/DriverEarnings';
 import { DriverProfile } from '../pages/DriverProfile';
+import { DriverRequests } from '../pages/DriverRequests';
+import { DriverRequestDetails } from '../pages/DriverRequestDetails';
 
 // Admin Pages
 import { Dashboard } from '../pages/Dashboard';
@@ -241,6 +243,8 @@ export const AppRoutes = () => {
             }
           />
 
+          <Route path="requests" element={<DriverRequests />} />
+          <Route path="requests/:type/:id" element={<DriverRequestDetails />} />
           <Route path="active-trip" element={<ActiveTripTracking />} />
           <Route path="earnings" element={<DriverEarnings />} />
           <Route path="profile" element={<DriverProfile />} />
