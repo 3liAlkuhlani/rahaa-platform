@@ -14,7 +14,6 @@ import {
   MessageSquare,
   CheckCircle,
   X,
-  Sparkles,
   ArrowLeft,
 } from 'lucide-react';
 import { api, setToken, setCurrentUser, getDriverPortalRoute, getAdminDefaultRoute } from '../services/api';
@@ -63,59 +62,6 @@ const DRIVER_VEHICLE_PORTALS = [
   },
 ];
 
-const DEMO_ACCOUNTS = [
-  {
-    id: 'passenger',
-    role: 'passenger',
-    serviceType: null,
-    title: 'الراكب',
-    phone: '٧٧١٢٣٤٥٦٧',
-    password: 'password123',
-    icon: '🧑',
-    desc: 'محمد أحمد الصنعاني',
-  },
-  {
-    id: 'taxi',
-    role: 'driver',
-    serviceType: 'taxi',
-    title: 'كابتن تاكسي',
-    phone: '٧٧٢٢٢٣٣٤٤',
-    password: 'password123',
-    icon: '🚕',
-    desc: 'صالح علي الحميري',
-  },
-  {
-    id: 'rental',
-    role: 'driver',
-    serviceType: 'rental',
-    title: 'تأجير سيارات',
-    phone: '٧٧٤٤٤٥٥٦٦',
-    password: 'password123',
-    icon: '🔑',
-    desc: 'معرض الصنعاني للسيارات',
-  },
-  {
-    id: 'truck',
-    role: 'driver',
-    serviceType: 'truck',
-    title: 'شاحنة نقل',
-    phone: '٧٧٥٥٥٦٦٧٧',
-    password: 'password123',
-    icon: '🚚',
-    desc: 'وليد الحميري للنقل',
-  },
-  {
-    id: 'moto',
-    role: 'driver',
-    serviceType: 'motorcycle',
-    title: 'دراجة نارية',
-    phone: '٧٧٦٦٦٧٧٨٨',
-    password: 'password123',
-    icon: '🏍️',
-    desc: 'عصام البعداني للتوصيل',
-  },
-];
-
 export const Login = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -145,23 +91,6 @@ export const Login = ({ onLoginSuccess }) => {
 
   const activeDriverPortal =
     DRIVER_VEHICLE_PORTALS.find((p) => p.id === driverServiceType) || DRIVER_VEHICLE_PORTALS[0];
-
-
-  const handleFillDemo = (acc) => {
-    setPhone(acc.phone);
-    setUserPassword(acc.password);
-    setSuggestedOwnedService(null);
-    if (acc.role === 'passenger') {
-      setUserRole('passenger');
-    } else if (acc.role === 'driver') {
-      setUserRole('driver');
-      if (acc.serviceType) {
-        setDriverServiceType(acc.serviceType);
-      }
-    }
-    setErrorMsg('');
-    setSuccessMsg(`تمت تعبئة بيانات ${acc.title} — اضغط تسجيل الدخول للانتقال إلى صفحة ${acc.desc}`);
-  };
 
   const performLogin = async (overrideServiceType = null) => {
     setErrorMsg('');
@@ -550,49 +479,6 @@ export const Login = ({ onLoginSuccess }) => {
             >
               {userRole === 'driver' ? 'تسجيل سائق / مركبة جديدة' : 'إنشاء حساب راكب جديد'}
             </Link>
-          </div>
-
-          {/* Quick Demo Accounts Selection Panel */}
-          <div className="pt-3 border-t border-rahaa-border/80 space-y-2">
-            <div className="flex items-center justify-between text-xs font-cairo font-bold text-rahaa-navy">
-              <span className="flex items-center gap-1.5 text-rahaa-primary">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>حسابات تجريبية سريعة (كل سائق لبوابته الخاصة):</span>
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {DEMO_ACCOUNTS.map((acc) => {
-                const isSelectedDemo =
-                  phone === acc.phone &&
-                  (acc.role !== 'driver' || driverServiceType === acc.serviceType);
-
-                return (
-                  <button
-                    key={acc.id}
-                    type="button"
-                    onClick={() => handleFillDemo(acc)}
-                    className={`p-2.5 rounded-xl border text-right transition-all flex items-center gap-2.5 group shadow-2xs ${
-                      isSelectedDemo
-                        ? 'border-rahaa-primary bg-blue-50/90 ring-1 ring-rahaa-primary'
-                        : 'border-rahaa-border/80 bg-rahaa-bg hover:bg-blue-50/50 hover:border-rahaa-primary/60'
-                    }`}
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-white border border-rahaa-border/70 flex items-center justify-center text-base shrink-0 shadow-2xs">
-                      {acc.icon}
-                    </div>
-                    <div className="flex-1 min-w-0 text-right">
-                      <div className="text-rahaa-navy font-bold font-cairo text-xs group-hover:text-rahaa-primary truncate">
-                        {acc.title}
-                      </div>
-                      <div className="text-[10px] text-rahaa-text-muted truncate">
-                        {acc.desc}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
           </div>
         </form>
       </div>
