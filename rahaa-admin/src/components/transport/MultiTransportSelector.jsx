@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Car, Key, Truck, Bike, ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
 
-export const MultiTransportSelector = ({ onSelectService, activeService = 'taxi' }) => {
+export const MultiTransportSelector = ({ onSelectService, activeService = null }) => {
   const navigate = useNavigate();
+  const [selectedService, setSelectedService] = useState(activeService);
 
   const transportModes = [
     {
@@ -76,6 +77,7 @@ export const MultiTransportSelector = ({ onSelectService, activeService = 'taxi'
 
   // Navigate to dedicated service page
   const handleSelectServiceCard = (mode) => {
+    setSelectedService(mode.id);
     if (onSelectService) {
       onSelectService(mode.id);
     }
@@ -116,7 +118,7 @@ export const MultiTransportSelector = ({ onSelectService, activeService = 'taxi'
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6 items-stretch">
         {transportModes.map((mode) => {
           const Icon = mode.icon;
-          const isSelected = activeService === mode.id;
+          const isSelected = (activeService ?? selectedService) === mode.id;
 
           return (
             <div
@@ -129,7 +131,7 @@ export const MultiTransportSelector = ({ onSelectService, activeService = 'taxi'
                   handleSelectServiceCard(mode);
                 }
               }}
-              className={`group bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 md:p-6 flex flex-col justify-between cursor-pointer transition-all duration-300 relative overflow-hidden border shadow-rahaa-sm hover:shadow-rahaa-lg hover:-translate-y-1 ${
+              className={`group bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 md:p-6 flex flex-col justify-between cursor-pointer transition-all duration-300 relative overflow-hidden border shadow-rahaa-sm hover:shadow-rahaa-lg hover:-translate-y-1 focus:outline-none active:border-rahaa-primary/50 active:ring-2 active:ring-rahaa-primary ${
                 isSelected
                   ? 'border-rahaa-primary/50 ring-2 ring-rahaa-primary shadow-rahaa-md'
                   : 'border-rahaa-border hover:border-rahaa-primary/40'
