@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { api, getCurrentUser } from '../services/api';
 import { ServiceWorkflowStepper } from '../components/transport/ServiceWorkflowStepper';
+import { RahahGoogleMap } from '../components/maps/RahahGoogleMap';
+import { ActiveTripLockBanner, ACTIVE_TRIP_LOCK_MESSAGE } from '../components/trips/ActiveTripLockBanner';
 
 const DEFAULT_QUICK_TRIPS = [
   {
@@ -77,12 +79,52 @@ export const PassengerTaxiBooking = () => {
   const [dropoffLocation, setDropoffLocation] = useState(
     location.state?.dropoff || 'ميدان السبعين - جامع الصالح'
   );
+  const [pickupCoords, setPickupCoords] = useState({
+    lat: Number(location.state?.pickupLat || 15.328),
+    lng: Number(location.state?.pickupLng || 44.185),
+  });
+  const [dropoffCoords, setDropoffCoords] = useState({
+    lat: Number(location.state?.dropoffLat || 15.325),
+    lng: Number(location.state?.dropoffLng || 44.208),
+  });
+  const [activeTrip, setActiveTrip] = useState(null);
+  const [checkingActiveTrip, setCheckingActiveTrip] = useState(true);
   const isLocationConfirmed = !!location.state?.locationConfirmed;
 
   useEffect(() => {
     if (location.state?.pickup) setPickupLocation(location.state.pickup);
     if (location.state?.dropoff) setDropoffLocation(location.state.dropoff);
+    if (location.state?.pickupLat && location.state?.pickupLng) {
+      setPickupCoords({ lat: Number(location.state.pickupLat), lng: Number(location.state.pickupLng) });
+    }
+    if (location.state?.dropoffLat && location.state?.dropoffLng) {
+      setDropoffCoords({ lat: Number(location.state.dropoffLat), lng: Number(location.state.dropoffLng) });
+    }
   }, [location.state]);
+
+  // Check if passenger already has an active trip (single active trip enforcement)
+  useEffect(() => {
+    let mounted = true;
+    const checkActive = async () => {
+      try {
+        const res = await api.getActiveTrip();
+        if (mounted) {
+          setActiveTrip(res?.active_trip || null);
+        }
+      } catch {
+        // Ignore transient network errors
+      } finally {
+        if (mounted) setCheckingActiveTrip(false);
+      }
+    };
+
+    checkActive();
+    window.addEventListener('focus', checkActive);
+    return () => {
+      mounted = false;
+      window.removeEventListener('focus', checkActive);
+    };
+  }, []);
 
   const [selectedCategory, setSelectedCategory] = useState('comfort');
   const [paymentMethod, setPaymentMethod] = useState('wallet');
@@ -193,6 +235,11 @@ export const PassengerTaxiBooking = () => {
     e.preventDefault();
     setConfirmError('');
 
+    if (activeTrip) {
+      setConfirmError(ACTIVE_TRIP_LOCK_MESSAGE);
+      return;
+    }
+
     if (!dropoffLocation.trim()) {
       setConfirmError('يرجى تحديد وجهة الوصول قبل تأكيد الرحلة');
       return;
@@ -213,10 +260,10 @@ export const PassengerTaxiBooking = () => {
         vehicle_type: selectedCategory,
         payment_method: paymentMethod,
         fare: activeCat.fareNumeric,
-        pickup_lat: 15.3280,
-        pickup_lng: 44.1850,
-        dropoff_lat: 15.3520,
-        dropoff_lng: 44.1950,
+        pickup_lat: pickupCoords.lat,
+        pickup_lng: pickupCoords.lng,
+        dropoff_lat: dropoffCoords.lat,
+        dropoff_lng: dropoffCoords.lng,
       };
 
       const res = await api.requestTrip(payload);
@@ -225,11 +272,16 @@ export const PassengerTaxiBooking = () => {
         throw new Error(res?.message || 'تعذر تأكيد الرحلة في الخادم');
       }
 
-      navigate('/passenger/map', {
+      navigate(`/passenger/map/${res.trip.id}`, {
         state: { trip: res.trip },
       });
     } catch (err) {
-      setConfirmError(err.message || 'فشل تأكيد الرحلة. يرجى المحاولة مرة أخرى.');
+      if (err?.status === 409 && err?.data?.active_trip) {
+        setActiveTrip(err.data.active_trip);
+        setConfirmError(err.data.message || ACTIVE_TRIP_LOCK_MESSAGE);
+      } else {
+        setConfirmError(err.message || 'فشل تأكيد الرحلة. يرجى المحاولة مرة أخرى.');
+      }
     } finally {
       setIsConfirming(false);
     }
@@ -257,6 +309,9 @@ export const PassengerTaxiBooking = () => {
           }
         }}
       />
+
+      {/* Active Trip Guard Banner */}
+      <ActiveTripLockBanner activeTrip={activeTrip} />
 
       {/* 2. Taxi Dedicated Hero Banner */}
       <div className="bg-gradient-to-r from-[#0B1B36] via-[#122B56] to-[#1D4ED8] rounded-3xl p-6 sm:p-8 text-white shadow-rahaa-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden">
@@ -525,13 +580,18 @@ export const PassengerTaxiBooking = () => {
               {/* Requirement #3: Taxi Button strictly Navy Blue to Blue Gradient */}
               <button
                 type="submit"
-                disabled={isConfirming}
-                className="w-full h-12 px-4 rounded-xl bg-gradient-to-l from-[#0B1B36] via-[#122B56] to-[#1D4ED8] hover:from-[#081326] hover:via-[#0F2244] hover:to-[#1E40AF] active:scale-[0.99] text-white font-cairo font-bold text-sm shadow-md shadow-blue-900/25 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                disabled={isConfirming || Boolean(activeTrip) || checkingActiveTrip}
+                className="w-full h-12 px-4 rounded-xl bg-gradient-to-l from-[#0B1B36] via-[#122B56] to-[#1D4ED8] hover:from-[#081326] hover:via-[#0F2244] hover:to-[#1E40AF] active:scale-[0.99] text-white font-cairo font-bold text-sm shadow-md shadow-blue-900/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isConfirming ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>جاري تأكيد وحجز التاكسي...</span>
+                  </>
+                ) : activeTrip ? (
+                  <>
+                    <AlertCircle className="w-5 h-5" />
+                    <span>لديك رحلة نشطة حالياً — أكملها أو ألغِها أولاً</span>
                   </>
                 ) : (
                   <>
@@ -566,49 +626,28 @@ export const PassengerTaxiBooking = () => {
             </span>
           </div>
 
-          {/* Sana'a Route Map Preview Canvas */}
-          <div className="relative w-full h-[380px] bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 flex flex-col justify-between p-4 select-none">
-            <div
-              className="absolute inset-0 opacity-20 pointer-events-none"
-              style={{
-                backgroundImage: 'radial-gradient(#38bdf8 1px, transparent 1px)',
-                backgroundSize: '24px 24px',
-              }}
-            />
-
-            {/* Route Svg Lines */}
-            <svg className="absolute inset-0 w-full h-full opacity-60 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <ellipse cx="50" cy="50" rx="35" ry="30" fill="none" stroke="#334155" strokeWidth="3" />
-              <path d="M 10 45 Q 50 42 90 45" fill="none" stroke="#475569" strokeWidth="2.5" />
-              <path d="M 35 75 Q 48 55 60 25" fill="none" stroke="#38BDF8" strokeWidth="2" strokeDasharray="3,3" />
-            </svg>
-
-            {/* Pickup Marker */}
-            <div className="relative z-10 my-auto flex flex-col items-center justify-center gap-3">
-              <div className="flex flex-col items-center">
-                <div className="bg-white text-rahaa-navy font-cairo font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-md mb-1 whitespace-nowrap">
-                  الانطلاق: {pickupLocation}
-                </div>
-                <div className="w-9 h-9 rounded-full bg-rahaa-primary text-white flex items-center justify-center shadow-lg border-2 border-white">
-                  <MapPin className="w-4 h-4" />
-                </div>
-              </div>
-
-              <div className="w-0.5 h-8 border-r-2 border-dashed border-sky-400"></div>
-
-              <div className="flex flex-col items-center">
-                <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg border-2 border-white">
-                  <Navigation className="w-4 h-4" />
-                </div>
-                <div className="bg-emerald-600 text-white font-cairo font-bold text-[10px] px-2.5 py-0.5 rounded-full shadow-md mt-1 whitespace-nowrap">
-                  الوجهة: {dropoffLocation}
-                </div>
-              </div>
-            </div>
-
-            <div className="relative z-10 bg-slate-800/90 backdrop-blur-xs p-3 rounded-xl border border-slate-700 text-center text-xs text-slate-300">
-              <span>سيتم توجيه أقرب سائق فور تأكيد الطلب، مع إمكانية التتبع المباشر لحظة بلحظة.</span>
-            </div>
+          {/* Official Google Maps Route Preview */}
+          <RahahGoogleMap
+            heightClass="h-[360px]"
+            showRoute={true}
+            showGpsButton={true}
+            pickup={{
+              lat: pickupCoords.lat,
+              lng: pickupCoords.lng,
+              label: `الانطلاق: ${pickupLocation}`,
+            }}
+            dropoff={{
+              lat: dropoffCoords.lat,
+              lng: dropoffCoords.lng,
+              label: `الوجهة: ${dropoffLocation}`,
+            }}
+            onGpsLocated={({ lat, lng, address }) => {
+              setPickupCoords({ lat, lng });
+              if (address) setPickupLocation(address);
+            }}
+          />
+          <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center text-xs text-slate-300">
+            <span>سيتم توجيه أقرب سائق فور تأكيد الطلب، مع إمكانية التتبع المباشر عبر Google Maps لحظة بلحظة.</span>
           </div>
         </div>
       </div>

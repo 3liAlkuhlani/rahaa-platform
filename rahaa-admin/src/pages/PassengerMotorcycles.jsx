@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import {
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { ServiceWorkflowStepper } from '../components/transport/ServiceWorkflowStepper';
 import { RatingModal } from '../components/common/RatingModal';
+import { ActiveTripLockBanner, ACTIVE_TRIP_LOCK_MESSAGE } from '../components/trips/ActiveTripLockBanner';
 
 export const PassengerMotorcycles = () => {
   const location = useLocation();
@@ -34,6 +35,29 @@ export const PassengerMotorcycles = () => {
   const [errorMsg, setErrorMsg] = useState(null);
   const [isRatingOpen, setIsRatingOpen] = useState(false);
   const [workflowStep, setWorkflowStep] = useState(location.state?.locationConfirmed ? 2 : 1);
+  const [activeTrip, setActiveTrip] = useState(null);
+  const [activeCargo, setActiveCargo] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const checkActive = async () => {
+      try {
+        const res = await api.getActiveOrder();
+        if (mounted) {
+          setActiveTrip(res?.active_trip || null);
+          setActiveCargo(res?.active_cargo || null);
+        }
+      } catch {
+        // Ignore transient errors
+      }
+    };
+    checkActive();
+    window.addEventListener('focus', checkActive);
+    return () => {
+      mounted = false;
+      window.removeEventListener('focus', checkActive);
+    };
+  }, []);
 
   // Pricing formula for Sana'a Motorcycles
   const baseFare = serviceMode === 'passenger' ? 800 : 1000;
@@ -41,6 +65,10 @@ export const PassengerMotorcycles = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (activeTrip || activeCargo) {
+      setErrorMsg(ACTIVE_TRIP_LOCK_MESSAGE);
+      return;
+    }
     if (!pickupLocation || !deliveryLocation) {
       setErrorMsg('يرجى إدخال موقع الانطلاق وموقع الوصول');
       return;
@@ -54,6 +82,10 @@ export const PassengerMotorcycles = () => {
         sub_service: serviceMode,
         pickup_location: pickupLocation,
         delivery_location: deliveryLocation,
+        pickup_lat: location.state?.pickupLat,
+        pickup_lng: location.state?.pickupLng,
+        delivery_lat: location.state?.dropoffLat,
+        delivery_lng: location.state?.dropoffLng,
         cargo_type: serviceMode === 'passenger' ? 'مشوار راكب فردي' : deliveryItemType,
         cargo_description: notes,
         estimated_fare: estimatedFare,
@@ -61,9 +93,16 @@ export const PassengerMotorcycles = () => {
       });
 
       setSuccessOrder(res.cargo);
+      setActiveCargo(res.cargo);
       setWorkflowStep(4);
     } catch (err) {
-      setErrorMsg(err.message || 'فشل إرسال طلب الدراجة النارية');
+      if (err?.status === 409) {
+        if (err?.data?.active_trip) setActiveTrip(err.data.active_trip);
+        if (err?.data?.active_cargo) setActiveCargo(err.data.active_cargo);
+        setErrorMsg(err?.data?.message || ACTIVE_TRIP_LOCK_MESSAGE);
+      } else {
+        setErrorMsg(err.message || 'فشل إرسال طلب الدراجة النارية');
+      }
     } finally {
       setLoading(false);
     }
@@ -88,6 +127,9 @@ export const PassengerMotorcycles = () => {
           setWorkflowStep(s);
         }}
       />
+
+      {/* Active Trip / Order Lock Banner */}
+      {!successOrder && <ActiveTripLockBanner activeTrip={activeTrip} activeCargo={activeCargo} />}
 
       {/* 2. Hero Banner: Cyan Blue theme (Navy to Cyan - strictly NO orange) */}
       <div className="bg-gradient-to-r from-[#0B1B36] via-[#0369A1] to-[#06B6D4] rounded-3xl p-6 sm:p-8 text-white shadow-rahaa-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -336,11 +378,17 @@ export const PassengerMotorcycles = () => {
             {/* Requirement #3: Strictly Navy Blue to Cyan Blue Gradient (NO ORANGE AT ALL) */}
             <button
               type="submit"
-              disabled={loading}
-              className="w-full h-12 rounded-xl bg-gradient-to-l from-[#0B1B36] via-[#0369A1] to-[#06B6D4] hover:from-[#081326] hover:via-[#0284C7] hover:to-[#0891B2] active:scale-[0.99] text-white font-cairo font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-cyan-900/25 disabled:opacity-50"
+              disabled={loading || Boolean(activeTrip || activeCargo)}
+              className="w-full h-12 rounded-xl bg-gradient-to-l from-[#0B1B36] via-[#0369A1] to-[#06B6D4] hover:from-[#081326] hover:via-[#0284C7] hover:to-[#0891B2] active:scale-[0.99] text-white font-cairo font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-cyan-900/25 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Bike className="w-4 h-4" />
-              <span>{loading ? 'جاري البحث عن كابتن دراجة...' : 'التالي: تأكيد وإرسال طلب الدراجة'}</span>
+              <span>
+                {loading
+                  ? 'جاري البحث عن كابتن دراجة...'
+                  : activeTrip || activeCargo
+                  ? 'لديك رحلة نشطة حالياً'
+                  : 'التالي: تأكيد وإرسال طلب الدراجة'}
+              </span>
               <ArrowLeft className="w-4 h-4" />
             </button>
 

@@ -73,12 +73,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Trips (Taxi & On-Demand)
     Route::prefix('trips')->group(function () {
+        Route::get('/active', [TripController::class, 'activeTrip']);
         Route::get('/my-trips', [TripController::class, 'userTrips']);
         Route::post('/request', [TripController::class, 'requestTrip']);
         Route::get('/available', [TripController::class, 'availableTrips']);
         Route::get('/{id}', [TripController::class, 'showTrip']);
         Route::post('/{id}/accept', [TripController::class, 'acceptTrip']);
         Route::post('/{id}/status', [TripController::class, 'updateStatus']);
+        Route::post('/{id}/driver-location', [TripController::class, 'updateDriverLocation']);
         Route::post('/{id}/rate', [TripController::class, 'rateTrip']);
     });
 

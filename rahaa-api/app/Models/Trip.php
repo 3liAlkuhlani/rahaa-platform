@@ -9,6 +9,25 @@ class Trip extends Model
 {
     use HasFactory;
 
+    /**
+     * Statuses considered active (passenger cannot create a new trip while one exists)
+     * - requested   = Pending (waiting for driver)
+     * - accepted    = Accepted by driver
+     * - arrived     = Driver Arriving / Arrived at pickup
+     * - in_progress = Trip in progress
+     */
+    public const ACTIVE_STATUSES = [
+        'requested',
+        'accepted',
+        'arrived',
+        'in_progress',
+    ];
+
+    public const TERMINAL_STATUSES = [
+        'completed',
+        'cancelled',
+    ];
+
     protected $fillable = [
         'trip_number',
         'passenger_id',
@@ -19,6 +38,9 @@ class Trip extends Model
         'pickup_lng',
         'dropoff_lat',
         'dropoff_lng',
+        'driver_lat',
+        'driver_lng',
+        'driver_location_updated_at',
         'vehicle_type',
         'fare',
         'payment_method',
@@ -42,11 +64,24 @@ class Trip extends Model
         'pickup_lng' => 'float',
         'dropoff_lat' => 'float',
         'dropoff_lng' => 'float',
+        'driver_lat' => 'float',
+        'driver_lng' => 'float',
+        'driver_location_updated_at' => 'datetime',
         'accepted_at' => 'datetime',
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
         'cancelled_at' => 'datetime',
     ];
+
+    public function scopeActive($query)
+    {
+        return $query->whereIn('status', self::ACTIVE_STATUSES);
+    }
+
+    public function isActive(): bool
+    {
+        return in_array($this->status, self::ACTIVE_STATUSES, true);
+    }
 
     public function passenger()
     {

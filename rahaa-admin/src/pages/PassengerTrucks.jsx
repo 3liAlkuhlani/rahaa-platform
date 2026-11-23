@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import {
@@ -21,6 +21,7 @@ import {
 import { MultiTransportSelector } from '../components/transport/MultiTransportSelector';
 import { ServiceWorkflowStepper } from '../components/transport/ServiceWorkflowStepper';
 import { RatingModal } from '../components/common/RatingModal';
+import { ActiveTripLockBanner, ACTIVE_TRIP_LOCK_MESSAGE } from '../components/trips/ActiveTripLockBanner';
 
 export const PassengerTrucks = () => {
   const location = useLocation();
@@ -38,6 +39,29 @@ export const PassengerTrucks = () => {
   const [loading, setLoading] = useState(false);
   const [successOrder, setSuccessOrder] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [activeTrip, setActiveTrip] = useState(null);
+  const [activeCargo, setActiveCargo] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const checkActive = async () => {
+      try {
+        const res = await api.getActiveOrder();
+        if (mounted) {
+          setActiveTrip(res?.active_trip || null);
+          setActiveCargo(res?.active_cargo || null);
+        }
+      } catch {
+        // Ignore transient errors
+      }
+    };
+    checkActive();
+    window.addEventListener('focus', checkActive);
+    return () => {
+      mounted = false;
+      window.removeEventListener('focus', checkActive);
+    };
+  }, []);
   const [isRatingOpen, setIsRatingOpen] = useState(false);
 
   // Workflow current step:
@@ -93,6 +117,10 @@ export const PassengerTrucks = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (activeTrip || activeCargo) {
+      setErrorMsg(ACTIVE_TRIP_LOCK_MESSAGE);
+      return;
+    }
     if (!pickupLocation || !deliveryLocation) {
       setErrorMsg('يرجى تحديد موقع التحميل وموقع التسليم');
       return;
@@ -106,6 +134,10 @@ export const PassengerTrucks = () => {
         sub_service: 'cargo',
         pickup_location: pickupLocation,
         delivery_location: deliveryLocation,
+        pickup_lat: location.state?.pickupLat,
+        pickup_lng: location.state?.pickupLng,
+        delivery_lat: location.state?.dropoffLat,
+        delivery_lng: location.state?.dropoffLng,
         cargo_type: cargoType,
         cargo_description: cargoDescription,
         weight_kg: Number(weightKg),
@@ -117,9 +149,16 @@ export const PassengerTrucks = () => {
       });
 
       setSuccessOrder(res.cargo);
+      setActiveCargo(res.cargo);
       setWorkflowStep(4);
     } catch (err) {
-      setErrorMsg(err.message || 'فشل إرسال طلب الشاحنة. يرجى المحاولة لاحقاً');
+      if (err?.status === 409) {
+        if (err?.data?.active_trip) setActiveTrip(err.data.active_trip);
+        if (err?.data?.active_cargo) setActiveCargo(err.data.active_cargo);
+        setErrorMsg(err?.data?.message || ACTIVE_TRIP_LOCK_MESSAGE);
+      } else {
+        setErrorMsg(err.message || 'فشل إرسال طلب الشاحنة. يرجى المحاولة لاحقاً');
+      }
     } finally {
       setLoading(false);
     }
@@ -138,6 +177,9 @@ export const PassengerTrucks = () => {
           <span>العودة إلى الرئيسية واختيار وسيلة أخرى</span>
         </button>
       </div>
+
+      {/* Active Trip / Order Lock Banner */}
+      {!successOrder && <ActiveTripLockBanner activeTrip={activeTrip} activeCargo={activeCargo} />}
 
       {/* 2. Truck Workflow Stepper */}
       <ServiceWorkflowStepper
@@ -405,11 +447,17 @@ export const PassengerTrucks = () => {
               <div className="space-y-2 pt-2">
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full h-12 rounded-xl bg-gradient-to-l from-[#071932] via-[#0D2D56] to-[#0B58A8] hover:from-[#051124] hover:to-[#1668BE] text-white font-cairo font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-950/25 disabled:opacity-50"
+                  disabled={loading || Boolean(activeTrip || activeCargo)}
+                  className="w-full h-12 rounded-xl bg-gradient-to-l from-[#071932] via-[#0D2D56] to-[#0B58A8] hover:from-[#051124] hover:to-[#1668BE] text-white font-cairo font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-950/25 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Truck className="w-4 h-4 text-[#EE9224]" />
-                  <span>{loading ? 'جاري إرسال الطلب...' : 'التالي: تأكيد وإرسال طلب الشاحنة'}</span>
+                  <span>
+                    {loading
+                      ? 'جاري إرسال الطلب...'
+                      : activeTrip || activeCargo
+                      ? 'لديك رحلة نشطة حالياً'
+                      : 'التالي: تأكيد وإرسال طلب الشاحنة'}
+                  </span>
                   <ArrowLeft className="w-4 h-4" />
                 </button>
 

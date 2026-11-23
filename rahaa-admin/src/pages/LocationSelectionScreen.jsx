@@ -15,6 +15,7 @@ import {
   Bike
 } from 'lucide-react';
 import { ServiceWorkflowStepper } from '../components/transport/ServiceWorkflowStepper';
+import { RahahGoogleMap } from '../components/maps/RahahGoogleMap';
 
 const SANA_HOTSPOTS = [
   { name: 'شارع حدة - مركز الكميم', lat: 15.3280, lng: 44.1850 },
@@ -34,9 +35,18 @@ export const LocationSelectionScreen = () => {
   const serviceType = location.state?.serviceType || 'taxi';
   const prefilledVehicle = location.state?.vehicle || null;
 
-  // Locations state
+  // Locations state (name + real lat/lng coordinates)
   const [pickup, setPickup] = useState(location.state?.pickup || 'شارع حدة - أمام سيتي ماكس');
   const [dropoff, setDropoff] = useState(location.state?.dropoff || 'ميدان السبعين - جامع الصالح');
+  const [pickupCoords, setPickupCoords] = useState({
+    lat: Number(location.state?.pickupLat || 15.328),
+    lng: Number(location.state?.pickupLng || 44.185),
+  });
+  const [dropoffCoords, setDropoffCoords] = useState({
+    lat: Number(location.state?.dropoffLat || 15.325),
+    lng: Number(location.state?.dropoffLng || 44.208),
+  });
+  const [routeMeta, setRouteMeta] = useState({ distanceText: '', durationText: '' });
   const [isPickupPinActive, setIsPickupPinActive] = useState(true); // true = selecting pickup, false = selecting dropoff
   const [isGpsLoading, setIsGpsLoading] = useState(false);
 
@@ -57,15 +67,17 @@ export const LocationSelectionScreen = () => {
     setIsGpsLoading(true);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
-        () => {
+        (pos) => {
+          setPickupCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
           setPickup('موقعي الحالي المباشر - أمانة العاصمة صنعاء');
           setIsGpsLoading(false);
         },
         () => {
+          setPickupCoords({ lat: 15.328, lng: 44.185 });
           setPickup('حي حدة - موقعي الحالي (صنعاء)');
           setIsGpsLoading(false);
         },
-        { timeout: 4000 }
+        { enableHighAccuracy: true, timeout: 6000 }
       );
     } else {
       setPickup('حي حدة - موقعي الحالي (صنعاء)');
@@ -76,19 +88,36 @@ export const LocationSelectionScreen = () => {
   const handleSelectHotspot = (spot) => {
     if (isPickupPinActive) {
       setPickup(spot.name);
+      setPickupCoords({ lat: spot.lat, lng: spot.lng });
       setIsPickupPinActive(false); // Move to destination next
     } else {
       setDropoff(spot.name);
+      setDropoffCoords({ lat: spot.lat, lng: spot.lng });
+    }
+  };
+
+  const handleMapClick = ({ lat, lng, address }) => {
+    if (isPickupPinActive) {
+      setPickupCoords({ lat, lng });
+      setPickup(address || `موقع الانطلاق (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+      setIsPickupPinActive(false);
+    } else {
+      setDropoffCoords({ lat, lng });
+      setDropoff(address || `موقع الوجهة (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
     }
   };
 
   const handleConfirmLocations = () => {
-    // Navigate automatically to the service execution screen preserving inputs
+    // Navigate automatically to the service execution screen preserving names and GPS coordinates
     navigate(serviceMeta.nextRoute, {
       state: {
         serviceType,
         pickup,
         dropoff,
+        pickupLat: pickupCoords.lat,
+        pickupLng: pickupCoords.lng,
+        dropoffLat: dropoffCoords.lat,
+        dropoffLng: dropoffCoords.lng,
         vehicle: prefilledVehicle,
         locationConfirmed: true,
       },
@@ -151,22 +180,13 @@ export const LocationSelectionScreen = () => {
 
       {/* Main Grid: Interactive Map (8 cols) & Location Pinning Panel (4 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 items-stretch">
-        {/* Left Column: Interactive Visual Map (8 cols) */}
-        <div className="lg:col-span-8 bg-slate-900 rounded-3xl overflow-hidden shadow-rahaa-card border border-slate-800 relative min-h-[460px] flex flex-col justify-between p-6">
-          {/* Stylized Sana'a Vector Map Grid */}
-          <div
-            className="absolute inset-0 opacity-20 pointer-events-none"
-            style={{
-              backgroundImage: `radial-gradient(circle at 25px 25px, rgba(255,255,255,0.3) 2%, transparent 0%), linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)`,
-              backgroundSize: '40px 40px',
-            }}
-          />
-
+        {/* Left Column: Official Interactive Google Maps (8 cols) */}
+        <div className="lg:col-span-8 bg-slate-900 rounded-3xl overflow-hidden shadow-rahaa-card border border-slate-800 relative flex flex-col justify-between p-4 sm:p-5 space-y-4">
           {/* Map Top Floating Controls */}
-          <div className="relative z-10 flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex items-center gap-2 bg-slate-800/90 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs text-white border border-slate-700 shadow-md">
-              <Compass className="w-4 h-4 text-rahaa-orange animate-spin" style={{ animationDuration: '8s' }} />
-              <span>خريطة أمانة العاصمة صنعاء التفاعلية</span>
+              <Compass className="w-4 h-4 text-rahaa-orange" />
+              <span>خريطة Google Maps التفاعلية - انقر لتحديد {isPickupPinActive ? 'نقطة الانطلاق' : 'الوجهة'}</span>
             </div>
 
             {/* Toggle selecting Pickup vs Dropoff */}
@@ -192,39 +212,37 @@ export const LocationSelectionScreen = () => {
             </div>
           </div>
 
-          {/* Central Map Pins Visual */}
-          <div className="relative z-10 my-auto flex flex-col items-center justify-center">
-            {/* Pickup Marker */}
-            <div className="flex flex-col items-center animate-bounce" style={{ animationDuration: '2.5s' }}>
-              <div className="relative">
-                <div className="w-12 h-12 rounded-full bg-rahaa-primary/30 animate-ping absolute inset-0" />
-                <div className="w-12 h-12 rounded-2xl bg-rahaa-primary text-white flex items-center justify-center shadow-2xl border-2 border-white relative z-10">
-                  <MapPin className="w-6 h-6" />
-                </div>
-              </div>
-              <div className="bg-white text-rahaa-navy font-cairo font-bold text-xs px-3.5 py-1.5 rounded-full shadow-lg border border-slate-200 mt-2 whitespace-nowrap">
-                الانطلاق: {pickup}
-              </div>
-            </div>
-
-            {/* Connecting Route Dash Line */}
-            <div className="w-1 h-16 border-r-2 border-dashed border-rahaa-orange my-1"></div>
-
-            {/* Dropoff Marker */}
-            <div className="flex flex-col items-center">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-2xl border-2 border-white relative z-10">
-                <Navigation className="w-5 h-5" />
-              </div>
-              <div className="bg-emerald-600 text-white font-cairo font-bold text-xs px-3.5 py-1 rounded-full shadow-lg mt-1.5 whitespace-nowrap">
-                الوجهة: {dropoff}
-              </div>
-            </div>
-          </div>
+          <RahahGoogleMap
+            heightClass="h-[340px] sm:h-[400px]"
+            interactive={true}
+            showRoute={true}
+            showGpsButton={true}
+            pickup={{
+              lat: pickupCoords.lat,
+              lng: pickupCoords.lng,
+              label: `الانطلاق: ${pickup}`,
+            }}
+            dropoff={{
+              lat: dropoffCoords.lat,
+              lng: dropoffCoords.lng,
+              label: `الوجهة: ${dropoff}`,
+            }}
+            onMapClick={handleMapClick}
+            onGpsLocated={({ lat, lng, address }) => {
+              setPickupCoords({ lat, lng });
+              setPickup(address || 'موقعي الحالي المباشر');
+            }}
+            onRouteCalculated={(meta) => setRouteMeta(meta)}
+          />
 
           {/* Map Footer Bar */}
-          <div className="relative z-10 bg-slate-800/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-300">
-            <span>انقر على المعالم أدناه لتثبيت الموقع فوراً على الخريطة</span>
-            <span className="text-white font-cairo font-bold">المسافة التقديرية: ~5.4 كم (11 دقيقة)</span>
+          <div className="bg-slate-800/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-300">
+            <span>انقر على أي موقع في الخريطة أو اختر من المعالم لتثبيت المسار فوراً</span>
+            <span className="text-white font-cairo font-bold">
+              {routeMeta.distanceText
+                ? `المسافة: ${routeMeta.distanceText}${routeMeta.durationText ? ` (${routeMeta.durationText})` : ''}`
+                : 'المسار عبر Google Directions'}
+            </span>
           </div>
         </div>
 

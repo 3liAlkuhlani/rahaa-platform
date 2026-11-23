@@ -325,6 +325,7 @@ export const api = {
   },
 
   // Trips
+  getActiveTrip: () => request('/trips/active', { method: 'GET' }),
   getMyTrips: () => request('/trips/my-trips', { method: 'GET' }),
   getTrip: (id) => request(`/trips/${id}`, { method: 'GET' }),
   requestTrip: (tripData) => request('/trips/request', {
@@ -336,6 +337,10 @@ export const api = {
   updateTripStatus: (id, status, reason = null) => request(`/trips/${id}/status`, {
     method: 'POST',
     body: JSON.stringify({ status, cancellation_reason: reason }),
+  }),
+  updateTripDriverLocation: (id, lat, lng) => request(`/trips/${id}/driver-location`, {
+    method: 'POST',
+    body: JSON.stringify({ lat, lng }),
   }),
   rateTrip: (id, rating, review = '') => request(`/trips/${id}/rate`, {
     method: 'POST',

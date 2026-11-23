@@ -17,6 +17,7 @@ import {
 import { api, getCurrentUser } from '../services/api';
 import { RatingModal } from '../components/common/RatingModal';
 import { ServiceWorkflowStepper } from '../components/transport/ServiceWorkflowStepper';
+import { RahahGoogleMap } from '../components/maps/RahahGoogleMap';
 
 export const PassengerTripMap = () => {
   const location = useLocation();
@@ -30,6 +31,7 @@ export const PassengerTripMap = () => {
   const [error, setError] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [isRatingOpen, setIsRatingOpen] = useState(false);
+  const [routeMeta, setRouteMeta] = useState({ distanceText: '', durationText: '' });
 
   const fetchLatestTrip = async () => {
     try {
@@ -62,6 +64,26 @@ export const PassengerTripMap = () => {
       fetchLatestTrip();
     }
   }, [tripId]);
+
+  // Live polling for driver location & trip status without page reload
+  useEffect(() => {
+    const activeStatuses = ['requested', 'accepted', 'arrived', 'in_progress'];
+    const targetId = tripId || trip?.id;
+    if (!targetId || (trip && !activeStatuses.includes(trip.status))) return undefined;
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        api
+          .getTrip(targetId)
+          .then((res) => {
+            if (res?.trip) setTrip(res.trip);
+          })
+          .catch(() => {});
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [tripId, trip?.id, trip?.status]);
 
   const handleCancelTrip = async () => {
     if (!trip?.id || cancelling) return;
@@ -197,99 +219,61 @@ export const PassengerTripMap = () => {
 
       {/* Main Grid: Map Viewport (7 cols) & Trip Information Panel (5 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Live Interactive Map */}
-        <div className="lg:col-span-7 bg-rahaa-card rounded-3xl p-5 border border-rahaa-border shadow-rahaa-card space-y-4">
-          <div className="relative w-full h-[460px] bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 flex flex-col justify-between p-4 select-none">
-            {/* Subtle Map Grid */}
-            <div
-              className="absolute inset-0 opacity-20 pointer-events-none"
-              style={{
-                backgroundImage: 'radial-gradient(#38bdf8 1px, transparent 1px)',
-                backgroundSize: '24px 24px',
-              }}
-            />
-
-            {/* Simulated Roads & Active Route Path */}
-            <svg className="absolute inset-0 w-full h-full opacity-60 pointer-events-none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M 40 340 Q 240 260 420 190 T 680 110" fill="none" stroke="#334155" strokeWidth="10" />
-              <path d="M 100 90 L 360 230 L 580 370" fill="none" stroke="#334155" strokeWidth="8" />
-              {/* Highlighted Route Line between Pickup and Dropoff */}
-              <path
-                d="M 160 320 Q 310 230 490 140"
-                fill="none"
-                stroke="#EE9224"
-                strokeWidth="4"
-                strokeDasharray="8,6"
-              />
-            </svg>
-
-            {/* Top Map Telemetry Overlay */}
-            <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 bg-slate-800/90 backdrop-blur-xs px-4 py-2.5 rounded-xl border border-slate-700 text-xs text-white">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="font-cairo font-bold">تتبع الموقع المباشر نشط - صنعاء</span>
-              </div>
-              <div className="font-mono text-amber-400 font-bold">
+        {/* Live Interactive Google Map */}
+        <div className="lg:col-span-7 bg-rahaa-card rounded-3xl p-4 sm:p-5 border border-rahaa-border shadow-rahaa-card space-y-3.5">
+          {/* Top Map Telemetry Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-2.5 rounded-2xl border border-slate-800 text-xs text-white">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+              <span className="font-cairo font-bold">تتبع مباشر عبر Google Maps - صنعاء</span>
+            </div>
+            <div className="flex items-center gap-3 font-tajawal font-bold">
+              {routeMeta.distanceText && (
+                <span className="text-sky-300">
+                  {routeMeta.distanceText} {routeMeta.durationText ? `(${routeMeta.durationText})` : ''}
+                </span>
+              )}
+              <span className="font-mono text-amber-400">
                 الأجرة: {Number(trip.fare || 0).toLocaleString()} ر.ي
-              </div>
-            </div>
-
-            {/* Map Markers: Passenger Pickup, Driver, and Destination */}
-            <div className="relative z-10 flex-1">
-              {/* 1. Passenger Pickup Marker */}
-              <div className="absolute bottom-14 left-16 sm:left-24 flex flex-col items-center">
-                <div className="bg-white text-rahaa-navy font-cairo font-bold text-[11px] px-3 py-1 rounded-full shadow-lg border border-rahaa-border mb-1.5 whitespace-nowrap">
-                  موقع الانطلاق: {trip.pickup_name}
-                </div>
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-rahaa-blue/40 animate-ping absolute inset-0" />
-                  <div className="w-10 h-10 rounded-full bg-rahaa-blue text-white flex items-center justify-center shadow-xl border-2 border-white relative z-10">
-                    <MapPin className="w-5 h-5" />
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. Driver Live Marker */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-                <div className="bg-rahaa-orange text-white font-cairo font-bold text-[11px] px-2.5 py-0.5 rounded-full shadow-md mb-1 whitespace-nowrap">
-                  {trip.driver ? `الكابتن: ${trip.driver.name}` : 'كابتن راحة القريب'}
-                </div>
-                <div className="w-10 h-10 rounded-full bg-rahaa-orange text-white flex items-center justify-center shadow-xl border-2 border-white">
-                  <Car className="w-5 h-5" />
-                </div>
-              </div>
-
-              {/* 3. Destination Marker */}
-              <div className="absolute top-10 right-12 sm:right-20 flex flex-col items-center">
-                <div className="bg-emerald-600 text-white font-cairo font-bold text-[11px] px-3 py-1 rounded-full shadow-lg mb-1.5 whitespace-nowrap">
-                  الوجهة: {trip.dropoff_name}
-                </div>
-                <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xl border-2 border-white">
-                  <Navigation className="w-5 h-5" />
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Map Legend */}
-            <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 bg-slate-800/90 backdrop-blur-xs p-3 rounded-xl border border-slate-700 text-[11px] text-slate-200 font-tajawal">
-              <div className="flex items-center gap-4">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rahaa-blue inline-block" />
-                  موقع المستخدم
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rahaa-orange inline-block" />
-                  موقع السائق
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
-                  موقع الوجهة
-                </span>
-              </div>
-              <span className="font-mono text-slate-400">
-                {trip.pickup_lat || '15.3547'}, {trip.pickup_lng || '44.2066'}
               </span>
             </div>
+          </div>
+
+          <RahahGoogleMap
+            heightClass="h-[360px] sm:h-[430px]"
+            showRoute={true}
+            showGpsButton={true}
+            pickup={{
+              lat: Number(trip.pickup_lat || 15.3547),
+              lng: Number(trip.pickup_lng || 44.2066),
+              label: `موقع الانطلاق: ${trip.pickup_name || ''}`,
+            }}
+            dropoff={{
+              lat: Number(trip.dropoff_lat || 15.3694),
+              lng: Number(trip.dropoff_lng || 44.191),
+              label: `الوجهة: ${trip.dropoff_name || ''}`,
+            }}
+            driver={
+              trip.driver_id &&
+              (trip.driver_lat || trip.driver?.driver_profile?.current_lat)
+                ? {
+                    lat: Number(trip.driver_lat || trip.driver?.driver_profile?.current_lat),
+                    lng: Number(trip.driver_lng || trip.driver?.driver_profile?.current_lng),
+                    label: trip.driver?.name ? `الكابتن: ${trip.driver.name}` : 'موقع السائق المباشر',
+                  }
+                : null
+            }
+            onRouteCalculated={(meta) => setRouteMeta(meta)}
+          />
+
+          {/* Bottom Coordinates & Route Summary */}
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-rahaa-bg px-3.5 py-2.5 rounded-xl border border-rahaa-border text-[11px] text-rahaa-text-muted font-tajawal">
+            <span className="truncate">
+              <strong>الانطلاق:</strong> {trip.pickup_name} ← <strong>الوجهة:</strong> {trip.dropoff_name}
+            </span>
+            <span className="font-mono text-slate-500">
+              {Number(trip.pickup_lat || 15.3547).toFixed(4)}, {Number(trip.pickup_lng || 44.2066).toFixed(4)}
+            </span>
           </div>
         </div>
 

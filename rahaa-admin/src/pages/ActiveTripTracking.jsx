@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Navigation,
@@ -11,6 +11,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { RahahGoogleMap } from '../components/maps/RahahGoogleMap';
 
 export const ActiveTripTracking = () => {
   const navigate = useNavigate();
@@ -35,6 +36,35 @@ export const ActiveTripTracking = () => {
     { sender: 'rider', text: 'أهلاً كابتن، أنا في موقع الالتقاط المحدد', time: 'الآن' },
   ]);
   const [newMessage, setNewMessage] = useState('');
+  const [driverCoords, setDriverCoords] = useState({
+    lat: Number(passedTrip?.driver_lat || 15.349),
+    lng: Number(passedTrip?.driver_lng || 44.201),
+  });
+  const [routeMeta, setRouteMeta] = useState({ distanceText: '4.2 كم', durationText: '' });
+  const lastSyncRef = useRef(0);
+
+  // Broadcast driver's real GPS coordinates to backend while trip is active
+  useEffect(() => {
+    if (tripStage === 'completed' || !('geolocation' in navigator)) return undefined;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setDriverCoords({ lat, lng });
+
+        const now = Date.now();
+        if (trip?.id && now - lastSyncRef.current >= 4000) {
+          lastSyncRef.current = now;
+          api.updateTripDriverLocation(trip.id, lat, lng).catch(() => {});
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [trip?.id, tripStage]);
 
   useEffect(() => {
     if (!passedTrip) {
@@ -155,18 +185,18 @@ export const ActiveTripTracking = () => {
 
       {/* Main HUD & Map Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Navigation Visual Cockpit */}
-        <div className="lg:col-span-7 bg-slate-900 rounded-3xl p-6 text-white border border-slate-800 space-y-5 relative overflow-hidden flex flex-col justify-between min-h-[420px]">
-          <div className="bg-slate-800/90 backdrop-blur-xs p-4 rounded-2xl border border-slate-700 flex items-center justify-between z-10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rahaa-blue text-white flex items-center justify-center">
+        {/* Left: Official Google Maps Driver Navigation Cockpit */}
+        <div className="lg:col-span-7 bg-slate-900 rounded-3xl p-4 sm:p-5 text-white border border-slate-800 space-y-4 relative overflow-hidden flex flex-col justify-between">
+          <div className="bg-slate-800/90 backdrop-blur-xs p-3.5 rounded-2xl border border-slate-700 flex items-center justify-between gap-3 z-10">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-rahaa-blue text-white flex items-center justify-center shrink-0">
                 <Navigation className="w-5 h-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="text-xs text-rahaa-orange font-cairo block">
-                  التوجيه الملاحي المباشر
+                  التوجيه الملاحي المباشر (Google Maps)
                 </span>
-                <span className="text-sm font-cairo font-bold text-white">
+                <span className="text-sm font-cairo font-bold text-white truncate block">
                   {tripStage === 'arriving' && `التوجه إلى: ${tripDetails.pickup}`}
                   {tripStage === 'arrived' && 'أنت في موقع الالتقاط، بانتظار الراكب'}
                   {tripStage === 'in_progress' && `التوجه إلى: ${tripDetails.dropoff}`}
@@ -174,29 +204,40 @@ export const ActiveTripTracking = () => {
                 </span>
               </div>
             </div>
-            <div className="text-right font-tajawal font-bold text-xs text-slate-300">
-              ٤٠ كم/س
+            <div className="text-right font-tajawal font-bold text-xs text-sky-300 shrink-0">
+              {routeMeta.durationText || 'مباشر'}
             </div>
           </div>
 
-          <div className="relative my-auto flex items-center justify-center py-8">
-            <div className="w-64 h-64 rounded-full border border-slate-800 flex items-center justify-center relative">
-              <div className="w-44 h-44 rounded-full border border-dashed border-rahaa-orange/40" />
-              <div className="absolute top-4 right-10 flex flex-col items-center">
-                <div className="w-9 h-9 rounded-full bg-rahaa-orange text-white flex items-center justify-center shadow-lg border-2 border-white">
-                  <Car className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] text-amber-300 font-cairo mt-1">موقع السائق</span>
-              </div>
-
-              <div className="absolute bottom-6 left-12 flex flex-col items-center">
-                <div className="w-9 h-9 rounded-full bg-rahaa-blue text-white flex items-center justify-center shadow-lg border-2 border-white">
-                  <MapPin className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] text-blue-300 font-cairo mt-1">موقع الوجهة</span>
-              </div>
-            </div>
-          </div>
+          <RahahGoogleMap
+            heightClass="h-[320px] sm:h-[380px]"
+            showRoute={true}
+            showGpsButton={true}
+            pickup={{
+              lat: Number(trip?.pickup_lat || 15.3547),
+              lng: Number(trip?.pickup_lng || 44.2066),
+              label: `موقع الراكب: ${tripDetails.pickup}`,
+            }}
+            dropoff={{
+              lat: Number(trip?.dropoff_lat || 15.3694),
+              lng: Number(trip?.dropoff_lng || 44.191),
+              label: `الوجهة: ${tripDetails.dropoff}`,
+            }}
+            driver={{
+              lat: driverCoords.lat,
+              lng: driverCoords.lng,
+              label: 'موقعك الحالي (الكابتن)',
+            }}
+            onGpsLocated={({ lat, lng }) => {
+              setDriverCoords({ lat, lng });
+              if (trip?.id) {
+                api.updateTripDriverLocation(trip.id, lat, lng).catch(() => {});
+              }
+            }}
+            onRouteCalculated={(meta) => {
+              if (meta?.distanceText) setRouteMeta(meta);
+            }}
+          />
 
           <div className="grid grid-cols-3 gap-2 bg-slate-800/80 p-3 rounded-2xl border border-slate-700 text-center z-10">
             <div>
@@ -207,7 +248,9 @@ export const ActiveTripTracking = () => {
             </div>
             <div>
               <span className="text-[11px] text-slate-400 font-cairo block">المسافة</span>
-              <span className="text-sm font-mono font-bold text-white">4.2 كم</span>
+              <span className="text-sm font-mono font-bold text-white">
+                {routeMeta.distanceText || '4.2 كم'}
+              </span>
             </div>
             <div>
               <span className="text-[11px] text-slate-400 font-cairo block">الأجرة</span>

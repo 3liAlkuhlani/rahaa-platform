@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   XCircle,
 } from 'lucide-react';
+import { RahahGoogleMap } from '../maps/RahahGoogleMap';
 
 export const LiveTripMapCard = ({ selectedTrip }) => {
   const [isLiveTracking, setIsLiveTracking] = useState(true);
@@ -57,68 +58,33 @@ export const LiveTripMapCard = ({ selectedTrip }) => {
         </div>
       </div>
 
-      {/* Simulated Live Sana'a Map Area */}
-      <div className="relative h-64 bg-[#E4E9F2] overflow-hidden border-b border-[#E5E7EB]">
-        {/* Map Grid Pattern / Street Lines Simulation */}
-        <svg className="absolute inset-0 w-full h-full opacity-40" xmlns="http://www.w3.org/2000/svg">
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#94A3B8" strokeWidth="0.8" />
-          </pattern>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-          
-          {/* Main Simulated Roads (Sana'a Streets) */}
-          <path d="M-10 120 Q 150 180 320 80 T 500 220" fill="none" stroke="#CBD5E1" strokeWidth="14" />
-          <path d="M-10 120 Q 150 180 320 80 T 500 220" fill="none" stroke="#FFFFFF" strokeWidth="10" />
-
-          <path d="M 100 -20 Q 180 140 220 300" fill="none" stroke="#CBD5E1" strokeWidth="12" />
-          <path d="M 100 -20 Q 180 140 220 300" fill="none" stroke="#FFFFFF" strokeWidth="8" />
-
-          {/* Active Trip Route Line */}
-          <path
-            d="M 60 180 C 120 140, 200 160, 260 90"
-            fill="none"
-            stroke="#003FB1"
-            strokeWidth="4"
-            strokeDasharray="6 4"
-            className="animate-[dash_1.5s_linear_infinite]"
-          />
-        </svg>
-
-        {/* Departure Marker (Origin) */}
-        <div className="absolute top-[170px] right-[60px] transform translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-          <div className="bg-emerald-600 text-white text-[10px] font-tajawal font-bold px-2 py-0.5 rounded shadow-sm mb-1">
-            البداية: {trip.route.from.split(' ')[0]}
-          </div>
-          <div className="w-5 h-5 rounded-full bg-emerald-500 border-2 border-white shadow-md flex items-center justify-center">
-            <div className="w-2 h-2 rounded-full bg-white animate-ping"></div>
-          </div>
-        </div>
-
-        {/* Destination Marker */}
-        <div className="absolute top-[80px] left-[60px] transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-          <div className="bg-purple-700 text-white text-[10px] font-tajawal font-bold px-2 py-0.5 rounded shadow-sm mb-1">
-            الوجهة: {trip.route.to.split(' ')[0]}
-          </div>
-          <div className="w-6 h-6 rounded-full bg-purple-600 border-2 border-white shadow-md flex items-center justify-center text-white">
-            <MapPin className="w-3.5 h-3.5" />
-          </div>
-        </div>
-
-        {/* Live Car Position Marker (Animated Pulse) */}
-        {trip.status === 'قيد التنفيذ' && (
-          <div className="absolute top-[130px] right-[160px] transform translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10 transition-all duration-1000">
-            <div className="bg-[#003FB1] text-white text-[10px] font-cairo font-bold px-2 py-0.5 rounded shadow-lg flex items-center gap-1 mb-1">
-              <Car className="w-3 h-3 text-emerald-400" />
-              <span>{trip.speed || '42 كم/س'}</span>
-            </div>
-            <div className="relative">
-              <div className="w-9 h-9 rounded-full bg-blue-600/30 animate-ping absolute inset-0"></div>
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#003FB1] to-purple-600 text-white border-2 border-white shadow-xl flex items-center justify-center">
-                <Navigation className="w-5 h-5 transform rotate-45" />
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Official Live Google Maps Area (Admin Monitoring) */}
+      <div className="relative border-b border-[#E5E7EB]">
+        <RahahGoogleMap
+          heightClass="h-64"
+          className="rounded-none border-0"
+          showRoute={true}
+          showGpsButton={false}
+          pickup={{
+            lat: Number(trip.pickup_lat || 15.3547),
+            lng: Number(trip.pickup_lng || 44.2066),
+            label: `الانطلاق: ${trip.route?.from || trip.pickup_name || ''}`,
+          }}
+          dropoff={{
+            lat: Number(trip.dropoff_lat || 15.3694),
+            lng: Number(trip.dropoff_lng || 44.191),
+            label: `الوجهة: ${trip.route?.to || trip.dropoff_name || ''}`,
+          }}
+          driver={
+            trip.status === 'قيد التنفيذ' || trip.driver_lat
+              ? {
+                  lat: Number(trip.driver_lat || 15.361),
+                  lng: Number(trip.driver_lng || 44.199),
+                  label: `الكابتن: ${trip.driver?.name || ''}`,
+                }
+              : null
+          }
+        />
 
         {/* Floating Live Telemetry Pill */}
         <div className="absolute bottom-3 right-3 left-3 bg-white/90 backdrop-blur-md p-2.5 rounded-xl border border-white/60 shadow-lg flex items-center justify-around text-center">

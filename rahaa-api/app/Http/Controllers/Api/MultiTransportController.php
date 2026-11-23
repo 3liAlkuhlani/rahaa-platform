@@ -278,36 +278,68 @@ class MultiTransportController extends Controller
             'estimated_fare.required' => 'أجرة التقدير مطلوبة',
         ]);
 
-        $reqNumber = ($request->service_type === 'truck' ? 'TRK-' : 'MOT-') . strtoupper(Str::random(6));
+        return DB::transaction(function () use ($request, $user) {
+            User::where('id', $user->id)->lockForUpdate()->first();
 
-        $cargo = CargoRequest::create([
-            'request_number' => $reqNumber,
-            'sender_id' => $user->id,
-            'service_type' => $request->service_type,
-            'sub_service' => $request->input('sub_service', 'cargo'),
-            'pickup_location' => $request->pickup_location,
-            'pickup_lat' => $request->pickup_lat ?? 15.3547,
-            'pickup_lng' => $request->pickup_lng ?? 44.2066,
-            'delivery_location' => $request->delivery_location,
-            'delivery_lat' => $request->delivery_lat ?? 15.3700,
-            'delivery_lng' => $request->delivery_lng ?? 44.1950,
-            'cargo_type' => $request->cargo_type,
-            'cargo_description' => $request->cargo_description,
-            'weight_kg' => $request->weight_kg,
-            'volume_size' => $request->volume_size,
-            'required_truck_type' => $request->required_truck_type,
-            'cargo_images' => $request->cargo_images,
-            'scheduled_at' => $request->scheduled_at,
-            'estimated_fare' => $request->estimated_fare,
-            'payment_method' => $request->input('payment_method', 'cash'),
-            'status' => 'pending',
-        ]);
+            $activeTrip = Trip::where('passenger_id', $user->id)
+                ->active()
+                ->latest()
+                ->first();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'تم إنشاء طلب النقل بنجاح والبحث عن السائقين المؤهلين',
-            'cargo' => $cargo->load('sender:id,name,phone'),
-        ], 201);
+            if ($activeTrip) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'ACTIVE_TRIP_EXISTS',
+                    'message' => TripController::ACTIVE_TRIP_CONFLICT_MESSAGE,
+                    'active_trip' => $activeTrip,
+                ], 409);
+            }
+
+            $activeCargo = CargoRequest::where('sender_id', $user->id)
+                ->whereIn('status', ['pending', 'accepted', 'loading', 'in_transit'])
+                ->latest()
+                ->first();
+
+            if ($activeCargo) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'ACTIVE_ORDER_EXISTS',
+                    'message' => TripController::ACTIVE_TRIP_CONFLICT_MESSAGE,
+                    'active_cargo' => $activeCargo,
+                ], 409);
+            }
+
+            $reqNumber = ($request->service_type === 'truck' ? 'TRK-' : 'MOT-') . strtoupper(Str::random(6));
+
+            $cargo = CargoRequest::create([
+                'request_number' => $reqNumber,
+                'sender_id' => $user->id,
+                'service_type' => $request->service_type,
+                'sub_service' => $request->input('sub_service', 'cargo'),
+                'pickup_location' => $request->pickup_location,
+                'pickup_lat' => $request->pickup_lat ?? 15.3547,
+                'pickup_lng' => $request->pickup_lng ?? 44.2066,
+                'delivery_location' => $request->delivery_location,
+                'delivery_lat' => $request->delivery_lat ?? 15.3700,
+                'delivery_lng' => $request->delivery_lng ?? 44.1950,
+                'cargo_type' => $request->cargo_type,
+                'cargo_description' => $request->cargo_description,
+                'weight_kg' => $request->weight_kg,
+                'volume_size' => $request->volume_size,
+                'required_truck_type' => $request->required_truck_type,
+                'cargo_images' => $request->cargo_images,
+                'scheduled_at' => $request->scheduled_at,
+                'estimated_fare' => $request->estimated_fare,
+                'payment_method' => $request->input('payment_method', 'cash'),
+                'status' => 'pending',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم إنشاء طلب النقل بنجاح والبحث عن السائقين المؤهلين',
+                'cargo' => $cargo->load('sender:id,name,phone'),
+            ], 201);
+        }, 3);
     }
 
     /**
