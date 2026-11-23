@@ -3,14 +3,22 @@ import { PageHeader } from '../components/common/PageHeader';
 import { PrimaryButton } from '../components/common/PrimaryButton';
 import { RefreshCw, Search, Eye, X, MapPin } from 'lucide-react';
 import { api } from '../services/api';
+import { RahahGoogleMap } from '../components/maps/RahahGoogleMap';
 
 const STATUS_BADGE = {
   requested: { label: 'بانتظار القبول', cls: 'bg-amber-100 text-amber-800' },
   accepted: { label: 'تم القبول', cls: 'bg-sky-100 text-sky-800' },
+  driver_arriving: { label: 'السائق في الطريق', cls: 'bg-cyan-100 text-cyan-800' },
   arrived: { label: 'وصل السائق', cls: 'bg-blue-100 text-blue-800' },
   in_progress: { label: 'قيد التنفيذ', cls: 'bg-indigo-100 text-indigo-800' },
   completed: { label: 'مكتملة', cls: 'bg-emerald-100 text-emerald-800' },
   cancelled: { label: 'ملغاة', cls: 'bg-rose-100 text-rose-800' },
+};
+
+const PAYMENT_STATUS_LABELS = {
+  paid: { label: 'مدفوعة', cls: 'bg-emerald-100 text-emerald-800' },
+  pending: { label: 'بانتظار الدفع', cls: 'bg-amber-100 text-amber-800' },
+  failed: { label: 'فشل الدفع', cls: 'bg-rose-100 text-rose-800' },
 };
 
 const VEHICLE_LABELS = {
@@ -289,24 +297,50 @@ export const Trips = () => {
         )}
       </div>
 
-      {/* Trip Details Modal */}
+      {/* Trip Details Modal (With Official Google Maps & Payment Details) */}
       {selectedTrip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rahaa-navy/60 backdrop-blur-xs">
-          <div className="bg-rahaa-card rounded-3xl w-full max-w-lg p-6 border border-rahaa-border shadow-xl space-y-4">
+        <div className="fixed inset-0 z-[60] overflow-y-auto bg-rahaa-navy/60 backdrop-blur-xs">
+          <div className="min-h-full flex items-start sm:items-center justify-center p-3 sm:p-4 py-6">
+          <div className="bg-rahaa-card rounded-3xl w-full max-w-2xl p-5 sm:p-6 border border-rahaa-border shadow-xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-rahaa-border">
               <h2 className="font-cairo font-bold text-base text-rahaa-navy flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-rahaa-blue" />
-                <span>تفاصيل الرحلة #{selectedTrip.id}</span>
+                <span>تفاصيل الرحلة {selectedTrip.trip_number || `#${selectedTrip.id}`}</span>
               </h2>
               <button type="button" onClick={() => setSelectedTrip(null)} className="p-1.5 rounded-lg hover:bg-rahaa-bg">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            <RahahGoogleMap
+              heightClass="h-56 sm:h-64"
+              showRoute={selectedTrip.status !== 'cancelled'}
+              showGpsButton={false}
+              pickup={{
+                lat: Number(selectedTrip.pickup_lat || 15.3547),
+                lng: Number(selectedTrip.pickup_lng || 44.2066),
+                label: `الانطلاق: ${selectedTrip.pickup_name || selectedTrip.pickup_address || ''}`,
+              }}
+              dropoff={{
+                lat: Number(selectedTrip.dropoff_lat || 15.3694),
+                lng: Number(selectedTrip.dropoff_lng || 44.191),
+                label: `الوجهة: ${selectedTrip.dropoff_name || selectedTrip.dropoff_address || ''}`,
+              }}
+              driver={
+                selectedTrip.driver_lat && selectedTrip.driver_lng && !['completed', 'cancelled'].includes(selectedTrip.status)
+                  ? {
+                      lat: Number(selectedTrip.driver_lat),
+                      lng: Number(selectedTrip.driver_lng),
+                      label: `الكابتن: ${selectedTrip.driver?.name || ''}`,
+                    }
+                  : null
+              }
+            />
+
             <div className="space-y-3 text-xs">
               <div className="p-3.5 rounded-2xl bg-rahaa-bg border border-rahaa-border space-y-1.5">
-                <div><span className="text-rahaa-text-muted">نقطة الانطلاق:</span> <strong className="text-rahaa-navy">{selectedTrip.pickup_address}</strong></div>
-                <div><span className="text-rahaa-text-muted">نقطة الوصول:</span> <strong className="text-rahaa-navy">{selectedTrip.dropoff_address}</strong></div>
+                <div><span className="text-rahaa-text-muted">نقطة الانطلاق:</span> <strong className="text-rahaa-navy">{selectedTrip.pickup_name || selectedTrip.pickup_address || '—'}</strong></div>
+                <div><span className="text-rahaa-text-muted">نقطة الوصول:</span> <strong className="text-rahaa-navy">{selectedTrip.dropoff_name || selectedTrip.dropoff_address || '—'}</strong></div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 p-3.5 rounded-2xl bg-rahaa-bg border border-rahaa-border">
@@ -327,13 +361,17 @@ export const Trips = () => {
                   </div>
                 </div>
                 <div>
-                  <div className="text-rahaa-text-subtle">الأجرة والدفع</div>
+                  <div className="text-rahaa-text-subtle">المبلغ وطريقة الدفع</div>
                   <div className="font-cairo font-bold text-rahaa-blue">
-                    {Number(selectedTrip.fare || 0).toLocaleString()} ر.ي ({selectedTrip.payment_method})
+                    {Number(selectedTrip.final_fare ?? selectedTrip.fare ?? 0).toLocaleString()} ر.ي ({selectedTrip.payment_method})
                   </div>
+                  <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${(PAYMENT_STATUS_LABELS[selectedTrip.payment_status] || PAYMENT_STATUS_LABELS.pending).cls}`}>
+                    {(PAYMENT_STATUS_LABELS[selectedTrip.payment_status] || PAYMENT_STATUS_LABELS.pending).label}
+                  </span>
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       )}

@@ -27,6 +27,10 @@ class TripController extends Controller
             ->latest()
             ->first();
 
+        if ($activeTrip) {
+            $activeTrip->sanitizeForViewer($user);
+        }
+
         return response()->json([
             'success' => true,
             'has_active_trip' => $activeTrip !== null,
@@ -78,6 +82,7 @@ class TripController extends Controller
                     ->first();
 
                 if ($existingActiveTrip) {
+                    $existingActiveTrip->sanitizeForViewer($user);
                     return response()->json([
                         'success' => false,
                         'code' => 'ACTIVE_TRIP_EXISTS',
@@ -150,12 +155,23 @@ class TripController extends Controller
             ], 404);
         }
 
-        if ($user->role !== 'admin' && $trip->passenger_id !== $user->id && $trip->driver_id !== $user->id && $trip->status !== 'requested') {
+        // Strict privacy & authorization check:
+        // - Admin / Supervisor can view any trip
+        // - Passenger can ONLY view their own trips (NEVER another passenger's trip, even if requested)
+        // - Driver can view their assigned trips or unassigned requested trips
+        $isAdmin = in_array($user->role, ['admin', 'supervisor'], true);
+        $isOwnerPassenger = $user->role === 'passenger' && $trip->passenger_id === $user->id;
+        $isAssignedDriver = $user->role === 'driver' && $trip->driver_id === $user->id;
+        $isDriverViewingOpenRequest = $user->role === 'driver' && $trip->status === 'requested' && $trip->driver_id === null;
+
+        if (!$isAdmin && !$isOwnerPassenger && !$isAssignedDriver && !$isDriverViewingOpenRequest) {
             return response()->json([
                 'success' => false,
                 'message' => 'غير مصرح لك بعرض بيانات هذه الرحلة',
             ], 403);
         }
+
+        $trip->sanitizeForViewer($user);
 
         return response()->json([
             'success' => true,
@@ -334,18 +350,15 @@ class TripController extends Controller
     }
 
     /**
-     * Update trip status (arrived, in_progress, completed, cancelled)
+     * Update trip status following strict sequential 7-state lifecycle:
+     * requested -> (acceptTrip) -> accepted -> driver_arriving -> arrived -> in_progress -> completed
+     * cancelled allowed from requested / accepted / driver_arriving / arrived (never from completed/cancelled)
      */
     public function updateStatus(Request $request, $id)
     {
-        // Support alias 'driver_arriving' -> 'arrived'
-        if ($request->input('status') === 'driver_arriving') {
-            $request->merge(['status' => 'arrived']);
-        }
-
         $request->validate([
-            'status' => 'required|in:arrived,in_progress,completed,cancelled',
-            'cancellation_reason' => 'nullable|string',
+            'status' => 'required|in:driver_arriving,arrived,in_progress,completed,cancelled',
+            'cancellation_reason' => 'nullable|string|max:500',
         ]);
 
         $user = $request->user();
@@ -357,8 +370,10 @@ class TripController extends Controller
                 return response()->json(['success' => false, 'message' => 'الرحلة غير موجودة'], 404);
             }
 
+            $isAdmin = in_array($user->role, ['admin', 'supervisor'], true);
+
             // Authorization check
-            if ($user->role !== 'admin' && $trip->driver_id !== $user->id && $trip->passenger_id !== $user->id) {
+            if (!$isAdmin && $trip->driver_id !== $user->id && $trip->passenger_id !== $user->id) {
                 return response()->json(['success' => false, 'message' => 'غير مصرح لك بتعديل هذه الرحلة'], 403);
             }
 
@@ -367,44 +382,160 @@ class TripController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'لا يمكن تغيير حالة رحلة مكتملة أو ملغاة بالفعل',
-                    'trip' => $trip->load(['passenger', 'driver.driverProfile']),
+                    'trip' => $trip->load(['passenger', 'driver.driverProfile'])->sanitizeForViewer($user),
                 ], 409);
             }
 
             $newStatus = $request->status;
+
+            // Passengers may ONLY cancel (not advance driver stages)
+            if ($user->role === 'passenger' && $newStatus !== 'cancelled') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'تحديث مراحل تنفيذ الرحلة مخصص للكابتن فقط',
+                ], 403);
+            }
+
+            // Strict sequential state transition map
+            $allowedNext = [
+                'requested' => ['cancelled'],
+                'accepted' => ['driver_arriving', 'cancelled'],
+                'driver_arriving' => ['arrived', 'cancelled'],
+                'arrived' => ['in_progress', 'cancelled'],
+                'in_progress' => ['completed'],
+            ];
+
+            $validTargets = $allowedNext[$trip->status] ?? [];
+            if (!in_array($newStatus, $validTargets, true)) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'INVALID_STATUS_TRANSITION',
+                    'message' => "لا يمكن الانتقال مباشرة من حالة ({$trip->status}) إلى ({$newStatus}). يجب اتباع ترتيب مراحل الرحلة.",
+                ], 422);
+            }
 
             if ($newStatus === 'cancelled') {
                 $trip->status = 'cancelled';
                 $trip->cancelled_by = $user->role;
                 $trip->cancellation_reason = $request->cancellation_reason ?? 'تم الإلغاء من قبل المستخدم';
                 $trip->cancelled_at = now();
+            } elseif ($newStatus === 'driver_arriving') {
+                $trip->status = 'driver_arriving';
+                $trip->driver_arriving_at = now();
             } elseif ($newStatus === 'arrived') {
                 $trip->status = 'arrived';
+                $trip->arrived_at = now();
             } elseif ($newStatus === 'in_progress') {
                 $trip->status = 'in_progress';
                 $trip->started_at = now();
             } elseif ($newStatus === 'completed') {
                 $trip->status = 'completed';
                 $trip->completed_at = now();
+                // Server-authoritative final fare (never trust client-sent fare)
+                $trip->final_fare = $trip->fare;
+                // Do NOT auto-mark paid simply because trip ended; require explicit payment confirmation
+                if (!in_array($trip->payment_status, ['paid', 'failed'], true)) {
+                    $trip->payment_status = 'pending';
+                }
 
-                // Update stats & balances
+                // Increment completed trip counts
                 if ($trip->driver && $trip->driver->driverProfile) {
-                    $driverProf = $trip->driver->driverProfile;
-                    $driverProf->increment('total_trips');
-                    $driverProf->increment('wallet_balance', $trip->fare * 0.85); // 85% driver share
+                    $trip->driver->driverProfile->increment('total_trips');
                 }
                 if ($trip->passenger && $trip->passenger->passengerProfile) {
-                    $passProf = $trip->passenger->passengerProfile;
-                    $passProf->increment('total_trips');
+                    $trip->passenger->passengerProfile->increment('total_trips');
                 }
+            }
+
+            $trip->save();
+
+            $trip->load(['passenger', 'driver.driverProfile'])->sanitizeForViewer($user);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم تحديث حالة الرحلة بنجاح',
+                'trip' => $trip,
+            ]);
+        });
+    }
+
+    /**
+     * Confirm or record payment result for a completed trip (idempotent — prevents duplicate payment)
+     */
+    public function confirmPayment(Request $request, $id)
+    {
+        $request->validate([
+            'result' => 'required|in:paid,failed',
+        ]);
+
+        $user = $request->user();
+
+        return DB::transaction(function () use ($request, $id, $user) {
+            $trip = Trip::where('id', $id)->lockForUpdate()->first();
+
+            if (!$trip) {
+                return response()->json(['success' => false, 'message' => 'الرحلة غير موجودة'], 404);
+            }
+
+            $isAdmin = in_array($user->role, ['admin', 'supervisor'], true);
+            $isDriver = $user->role === 'driver' && $trip->driver_id === $user->id;
+            $isPassenger = $user->role === 'passenger' && $trip->passenger_id === $user->id;
+
+            if (!$isAdmin && !$isDriver && !$isPassenger) {
+                return response()->json(['success' => false, 'message' => 'غير مصرح لك بتأكيد دفع هذه الرحلة'], 403);
+            }
+
+            // Cash payment confirmation can ONLY be performed by the assigned driver or admin
+            if ($trip->payment_method === 'cash' && $isPassenger && !$isAdmin) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'تأكيد استلام الدفع النقدي يتم من قِبل الكابتن فقط',
+                ], 403);
+            }
+
+            if ($trip->status !== 'completed') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا يمكن تسجيل الدفع قبل إنهاء الرحلة',
+                ], 422);
+            }
+
+            // Strictly prevent duplicate payment recording
+            if ($trip->payment_status === 'paid') {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'ALREADY_PAID',
+                    'message' => 'تم تسجيل دفع هذه الرحلة مسبقاً ولا يمكن تكرار عملية الدفع',
+                    'trip' => $trip->load(['passenger', 'driver.driverProfile'])->sanitizeForViewer($user),
+                ], 409);
+            }
+
+            $result = $request->result;
+            $amount = $trip->final_fare ?? $trip->fare;
+            $trip->final_fare = $amount;
+
+            if ($result === 'paid') {
+                $trip->payment_status = 'paid';
+                $trip->paid_at = now();
+                $trip->payment_reference = 'PAY-' . strtoupper(Str::random(10));
+                $trip->payment_confirmed_by = $user->id;
+
+                // Credit driver wallet once upon confirmed payment (85% driver share)
+                if ($trip->driver && $trip->driver->driverProfile) {
+                    $trip->driver->driverProfile->increment('wallet_balance', $amount * 0.85);
+                }
+            } else {
+                $trip->payment_status = 'failed';
             }
 
             $trip->save();
 
             return response()->json([
                 'success' => true,
-                'message' => 'تم تحديث حالة الرحلة بنجاح',
-                'trip' => $trip->load(['passenger', 'driver.driverProfile']),
+                'message' => $result === 'paid'
+                    ? 'تم تأكيد وتسجيل الدفع بنجاح'
+                    : 'تم تسجيل تعذر عملية الدفع، يرجى المحاولة مرة أخرى',
+                'trip' => $trip->load(['passenger', 'driver.driverProfile'])->sanitizeForViewer($user),
             ]);
         });
     }
@@ -454,6 +585,7 @@ class TripController extends Controller
                 ->where('passenger_id', $user->id)
                 ->latest()
                 ->paginate(15);
+            $trips->getCollection()->transform(fn (Trip $t) => $t->sanitizeForViewer($user));
         } elseif ($user->role === 'driver') {
             $trips = Trip::with('passenger')
                 ->where('driver_id', $user->id)

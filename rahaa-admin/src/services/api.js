@@ -342,6 +342,10 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ lat, lng }),
   }),
+  confirmTripPayment: (id, result = 'paid') => request(`/trips/${id}/payment`, {
+    method: 'POST',
+    body: JSON.stringify({ result }),
+  }),
   rateTrip: (id, rating, review = '') => request(`/trips/${id}/rate`, {
     method: 'POST',
     body: JSON.stringify({ rating, review }),

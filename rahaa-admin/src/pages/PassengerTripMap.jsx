@@ -30,6 +30,8 @@ export const PassengerTripMap = () => {
   const [loading, setLoading] = useState(!initialTrip);
   const [error, setError] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [paymentFeedback, setPaymentFeedback] = useState('');
   const [isRatingOpen, setIsRatingOpen] = useState(false);
   const [routeMeta, setRouteMeta] = useState({ distanceText: '', durationText: '' });
 
@@ -65,9 +67,9 @@ export const PassengerTripMap = () => {
     }
   }, [tripId]);
 
-  // Live polling for driver location & trip status without page reload
+  // Live polling for driver location & trip status without page reload (stops immediately on completed/cancelled)
   useEffect(() => {
-    const activeStatuses = ['requested', 'accepted', 'arrived', 'in_progress'];
+    const activeStatuses = ['requested', 'accepted', 'driver_arriving', 'arrived', 'in_progress'];
     const targetId = tripId || trip?.id;
     if (!targetId || (trip && !activeStatuses.includes(trip.status))) return undefined;
 
@@ -84,6 +86,22 @@ export const PassengerTripMap = () => {
 
     return () => clearInterval(interval);
   }, [tripId, trip?.id, trip?.status]);
+
+  const handleConfirmElectronicPayment = async () => {
+    if (!trip?.id || confirmingPayment) return;
+    setConfirmingPayment(true);
+    setError('');
+    setPaymentFeedback('');
+    try {
+      const res = await api.confirmTripPayment(trip.id, 'paid');
+      if (res?.trip) setTrip(res.trip);
+      setPaymentFeedback(res?.message || 'تم تأكيد الدفع بنجاح');
+    } catch (err) {
+      setError(err.message || 'تعذر تأكيد عملية الدفع');
+    } finally {
+      setConfirmingPayment(false);
+    }
+  };
 
   const handleCancelTrip = async () => {
     if (!trip?.id || cancelling) return;
@@ -104,19 +122,45 @@ export const PassengerTripMap = () => {
   const getStatusText = (status) => {
     switch (status) {
       case 'requested':
-        return 'جاري البحث عن أقرب سائق معتمد...';
+        return 'بانتظار قبول السائق — جاري البحث عن أقرب سائق معتمد...';
       case 'accepted':
-        return 'تم قبول الرحلة - السائق في طريقه إليك';
+        return 'تم قبول الرحلة — السائق يستعد للانطلاق إليك';
+      case 'driver_arriving':
+        return 'السائق في طريقه إلى موقعك الآن';
       case 'arrived':
-        return 'وصل السائق إلى نقطة الالتقاط';
+        return 'وصل السائق إلى نقطة الانطلاق';
       case 'in_progress':
-        return 'الرحلة جارية الآن باتجاه الوجهة';
+        return 'الرحلة قيد التنفيذ الآن باتجاه الوجهة';
       case 'completed':
         return 'اكتملت الرحلة بنجاح';
       case 'cancelled':
         return 'تم إلغاء الرحلة';
       default:
         return 'نشطة';
+    }
+  };
+
+  const getPaymentMethodLabel = (method) => {
+    switch (method) {
+      case 'cash':
+        return 'الدفع نقداً (كاش)';
+      case 'card':
+        return 'بطاقة بنكية';
+      case 'wallet':
+      default:
+        return 'المحفظة الإلكترونية';
+    }
+  };
+
+  const getPaymentStatusBadge = (pStatus) => {
+    switch (pStatus) {
+      case 'paid':
+        return { label: 'مدفوعة (Paid)', cls: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
+      case 'failed':
+        return { label: 'فشل الدفع (Failed)', cls: 'bg-rose-100 text-rose-800 border-rose-200' };
+      case 'pending':
+      default:
+        return { label: 'بانتظار تأكيد الدفع (Pending)', cls: 'bg-amber-100 text-amber-800 border-amber-200' };
     }
   };
 
@@ -219,62 +263,211 @@ export const PassengerTripMap = () => {
 
       {/* Main Grid: Map Viewport (7 cols) & Trip Information Panel (5 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Live Interactive Google Map */}
-        <div className="lg:col-span-7 bg-rahaa-card rounded-3xl p-4 sm:p-5 border border-rahaa-border shadow-rahaa-card space-y-3.5">
-          {/* Top Map Telemetry Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-2.5 rounded-2xl border border-slate-800 text-xs text-white">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-              <span className="font-cairo font-bold">تتبع مباشر عبر Google Maps - صنعاء</span>
-            </div>
-            <div className="flex items-center gap-3 font-tajawal font-bold">
-              {routeMeta.distanceText && (
-                <span className="text-sky-300">
-                  {routeMeta.distanceText} {routeMeta.durationText ? `(${routeMeta.durationText})` : ''}
-                </span>
-              )}
-              <span className="font-mono text-amber-400">
-                الأجرة: {Number(trip.fare || 0).toLocaleString()} ر.ي
-              </span>
-            </div>
-          </div>
+        {/* Live Interactive Google Map OR Final Completed Trip Receipt */}
+        <div className="lg:col-span-7 bg-rahaa-card rounded-3xl p-4 sm:p-5 border border-rahaa-border shadow-rahaa-card space-y-4">
+          {trip.status === 'completed' ? (
+            /* Final Trip & Payment Receipt Screen (All 9 Required Fields, Live Tracking Stopped) */
+            <div className="space-y-5 p-2">
+              <div className="rounded-2xl bg-gradient-to-l from-[#071932] via-[#0D2D56] to-[#0B58A8] p-5 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h2 className="font-cairo font-black text-lg">ملخص وتفاصيل الرحلة النهائية</h2>
+                    <p className="text-xs text-white/80">تم إيقاف التتبع المباشر وحفظ بيانات الرحلة والدفع بنجاح</p>
+                  </div>
+                </div>
+                <div className="text-left sm:text-right">
+                  <span className="text-[11px] text-white/75 block">المبلغ الإجمالي</span>
+                  <span className="font-cairo font-black text-2xl text-[#FDE68A]">
+                    {Number(trip.final_fare ?? trip.fare ?? 0).toLocaleString()} ر.ي
+                  </span>
+                </div>
+              </div>
 
-          <RahahGoogleMap
-            heightClass="h-[360px] sm:h-[430px]"
-            showRoute={true}
-            showGpsButton={true}
-            pickup={{
+              {paymentFeedback && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{paymentFeedback}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3.5 rounded-xl bg-rahaa-bg border border-rahaa-border">
+                  <span className="text-[11px] text-rahaa-text-subtle block">رقم الرحلة</span>
+                  <span className="font-mono font-bold text-rahaa-navy">{trip.trip_number || `#${trip.id}`}</span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-rahaa-bg border border-rahaa-border">
+                  <span className="text-[11px] text-rahaa-text-subtle block">اسم السائق</span>
+                  <span className="font-cairo font-bold text-rahaa-navy">{trip.driver?.name || 'غير محدد'}</span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-rahaa-bg border border-rahaa-border">
+                  <span className="text-[11px] text-rahaa-text-subtle block">وسيلة النقل</span>
+                  <span className="font-cairo font-bold text-rahaa-navy">
+                    {getVehicleLabel(trip.vehicle_type)}
+                    {trip.driver?.driver_profile?.vehicle_model ? ` — ${trip.driver.driver_profile.vehicle_model}` : ''}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-rahaa-bg border border-rahaa-border">
+                  <span className="text-[11px] text-rahaa-text-subtle block">تاريخ ووقت الرحلة</span>
+                  <span className="font-cairo font-bold text-rahaa-navy">
+                    {new Date(trip.completed_at || trip.created_at || Date.now()).toLocaleString('ar-YE')}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-rahaa-bg border border-rahaa-border">
+                  <span className="text-[11px] text-rahaa-text-subtle block">موقع الانطلاق</span>
+                  <span className="font-cairo font-bold text-rahaa-navy">{trip.pickup_name}</span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-rahaa-bg border border-rahaa-border">
+                  <span className="text-[11px] text-rahaa-text-subtle block">الوجهة النهائية</span>
+                  <span className="font-cairo font-bold text-rahaa-navy">{trip.dropoff_name}</span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-rahaa-bg border border-rahaa-border">
+                  <span className="text-[11px] text-rahaa-text-subtle block">طريقة الدفع</span>
+                  <span className="font-cairo font-bold text-rahaa-navy">{getPaymentMethodLabel(trip.payment_method)}</span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-rahaa-bg border border-rahaa-border flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-rahaa-text-subtle block">حالة الدفع</span>
+                    <span className={`inline-flex mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getPaymentStatusBadge(trip.payment_status).cls}`}>
+                      {getPaymentStatusBadge(trip.payment_status).label}
+                    </span>
+                  </div>
+                  {trip.payment_reference && (
+                    <span className="font-mono text-[10px] text-slate-500">{trip.payment_reference}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Electronic payment confirmation (Wallet / Card) or Cash notice */}
+              {trip.payment_status !== 'paid' && (
+                trip.payment_method === 'cash' ? (
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
+                    طريقة الدفع نقداً: يرجى تسليم المبلغ ({Number(trip.final_fare ?? trip.fare ?? 0).toLocaleString()} ر.ي) للكابتن ليقوم بتأكيد الاستلام.
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleConfirmElectronicPayment}
+                    disabled={confirmingPayment}
+                    className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-cairo font-bold text-xs shadow-sm transition-colors disabled:opacity-60"
+                  >
+                    {confirmingPayment
+                      ? 'جاري تأكيد الدفع...'
+                      : `تأكيد سداد المبلغ (${Number(trip.final_fare ?? trip.fare ?? 0).toLocaleString()} ر.ي)`}
+                  </button>
+                )
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsRatingOpen(true)}
+                  className="flex-1 h-11 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-cairo font-bold text-xs flex items-center justify-center gap-1.5"
+                >
+                  <Star className="w-4 h-4" />
+                  <span>تقييم الكابتن والرحلة</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/passenger')}
+                  className="flex-1 h-11 rounded-xl bg-rahaa-blue hover:bg-rahaa-blue-hover text-white font-cairo font-bold text-xs"
+                >
+                  طلب رحلة جديدة
+                </button>
+              </div>
+            </div>
+          ) : trip.status === 'cancelled' ? (
+            <div className="p-6 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                <XCircle className="w-6 h-6" />
+              </div>
+              <h3 className="font-cairo font-bold text-base text-rahaa-navy">تم إلغاء الرحلة وإيقاف التتبع</h3>
+              <p className="text-xs text-rahaa-text-muted">
+                {trip.cancellation_reason || 'يمكنك الآن طلب رحلة جديدة في أي وقت.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/passenger/taxi')}
+                className="h-10 px-5 rounded-xl bg-rahaa-blue text-white font-cairo font-bold text-xs"
+              >
+                طلب رحلة جديدة
+              </button>
+            </div>
+          ) : (() => {
+            const isTrackable = ['accepted', 'driver_arriving', 'arrived', 'in_progress'].includes(trip.status);
+            const isApproachPhase = ['accepted', 'driver_arriving', 'arrived'].includes(trip.status);
+            const pickupPoint = {
               lat: Number(trip.pickup_lat || 15.3547),
               lng: Number(trip.pickup_lng || 44.2066),
               label: `موقع الانطلاق: ${trip.pickup_name || ''}`,
-            }}
-            dropoff={{
+            };
+            const dropoffPoint = {
               lat: Number(trip.dropoff_lat || 15.3694),
               lng: Number(trip.dropoff_lng || 44.191),
               label: `الوجهة: ${trip.dropoff_name || ''}`,
-            }}
-            driver={
-              trip.driver_id &&
-              (trip.driver_lat || trip.driver?.driver_profile?.current_lat)
+            };
+            // Strictly show assigned driver ONLY when trip is accepted/arriving/arrived/in_progress
+            const driverPoint =
+              isTrackable && trip.driver_id && trip.driver_lat && trip.driver_lng
                 ? {
-                    lat: Number(trip.driver_lat || trip.driver?.driver_profile?.current_lat),
-                    lng: Number(trip.driver_lng || trip.driver?.driver_profile?.current_lng),
+                    lat: Number(trip.driver_lat),
+                    lng: Number(trip.driver_lng),
                     label: trip.driver?.name ? `الكابتن: ${trip.driver.name}` : 'موقع السائق المباشر',
                   }
-                : null
-            }
-            onRouteCalculated={(meta) => setRouteMeta(meta)}
-          />
+                : null;
 
-          {/* Bottom Coordinates & Route Summary */}
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-rahaa-bg px-3.5 py-2.5 rounded-xl border border-rahaa-border text-[11px] text-rahaa-text-muted font-tajawal">
-            <span className="truncate">
-              <strong>الانطلاق:</strong> {trip.pickup_name} ← <strong>الوجهة:</strong> {trip.dropoff_name}
-            </span>
-            <span className="font-mono text-slate-500">
-              {Number(trip.pickup_lat || 15.3547).toFixed(4)}, {Number(trip.pickup_lng || 44.2066).toFixed(4)}
-            </span>
-          </div>
+            return (
+              <>
+                {/* Top Map Telemetry Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-4 py-2.5 rounded-2xl border border-slate-800 text-xs text-white">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span className="font-cairo font-bold">
+                      {trip.status === 'requested'
+                        ? 'بانتظار قبول سائق — مواقع السائقين محمية حتى قبول الطلب'
+                        : isApproachPhase
+                        ? 'مسار وصول السائق إلى موقعك (Google Maps)'
+                        : 'مسار الرحلة إلى الوجهة (Google Maps)'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 font-tajawal font-bold">
+                    {routeMeta.distanceText && (
+                      <span className="text-sky-300">
+                        {routeMeta.distanceText} {routeMeta.durationText ? `(${routeMeta.durationText})` : ''}
+                      </span>
+                    )}
+                    <span className="font-mono text-amber-400">
+                      الأجرة: {Number(trip.fare || 0).toLocaleString()} ر.ي
+                    </span>
+                  </div>
+                </div>
+
+                <RahahGoogleMap
+                  heightClass="h-[360px] sm:h-[430px]"
+                  showRoute={isTrackable}
+                  showGpsButton={true}
+                  pickup={pickupPoint}
+                  dropoff={dropoffPoint}
+                  driver={driverPoint}
+                  routeOrigin={isApproachPhase && driverPoint ? driverPoint : pickupPoint}
+                  routeDestination={isApproachPhase && driverPoint ? pickupPoint : dropoffPoint}
+                  onRouteCalculated={(meta) => setRouteMeta(meta)}
+                />
+
+                {/* Bottom Coordinates & Route Summary */}
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-rahaa-bg px-3.5 py-2.5 rounded-xl border border-rahaa-border text-[11px] text-rahaa-text-muted font-tajawal">
+                  <span className="truncate">
+                    <strong>الانطلاق:</strong> {trip.pickup_name} ← <strong>الوجهة:</strong> {trip.dropoff_name}
+                  </span>
+                  <span className="font-mono text-slate-500">
+                    {pickupPoint.lat.toFixed(4)}, {pickupPoint.lng.toFixed(4)}
+                  </span>
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         {/* Trip & Driver Details Column */}

@@ -90,3 +90,4 @@ export const ActiveTripLockBanner = ({ activeTrip, activeCargo = null, className
     </div>
   );
 };
+

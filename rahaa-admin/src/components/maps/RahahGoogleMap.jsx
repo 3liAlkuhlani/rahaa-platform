@@ -75,6 +75,8 @@ export const RahahGoogleMap = ({
   dropoff = null, // { lat, lng, label? }
   driver = null, // { lat, lng, label? }
   nearbyDrivers = [], // [{ id, lat, lng, label? }]
+  routeOrigin = null, // Optional override for route start (e.g. driver -> pickup during approach)
+  routeDestination = null, // Optional override for route end
   showRoute = false,
   interactive = false,
   showGpsButton = true,
@@ -343,13 +345,16 @@ export const RahahGoogleMap = ({
       }
     };
 
-    if (!showRoute || !isValidCoord(pickup) || !isValidCoord(dropoff)) {
+    const effectiveOrigin = isValidCoord(routeOrigin) ? routeOrigin : pickup;
+    const effectiveDestination = isValidCoord(routeDestination) ? routeDestination : dropoff;
+
+    if (!showRoute || !isValidCoord(effectiveOrigin) || !isValidCoord(effectiveDestination)) {
       clearRoute();
       return;
     }
 
-    const origin = { lat: pickup.lat, lng: pickup.lng };
-    const destination = { lat: dropoff.lat, lng: dropoff.lng };
+    const origin = { lat: effectiveOrigin.lat, lng: effectiveOrigin.lng };
+    const destination = { lat: effectiveDestination.lat, lng: effectiveDestination.lng };
 
     const drawFallbackPolyline = () => {
       if (directionsRendererRef.current) {
@@ -415,7 +420,18 @@ export const RahahGoogleMap = ({
     } catch {
       drawFallbackPolyline();
     }
-  }, [loadState, showRoute, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
+  }, [
+    loadState,
+    showRoute,
+    pickup?.lat,
+    pickup?.lng,
+    dropoff?.lat,
+    dropoff?.lng,
+    routeOrigin?.lat,
+    routeOrigin?.lng,
+    routeDestination?.lat,
+    routeDestination?.lng,
+  ]);
 
   // GPS Locate User
   const handleLocateMe = () => {
@@ -594,3 +610,4 @@ export const RahahGoogleMap = ({
     </div>
   );
 };
+

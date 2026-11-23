@@ -19,17 +19,17 @@ export const ActiveTripTracking = () => {
 
   const passedTrip = location.state?.trip || null;
   const [trip, setTrip] = useState(passedTrip);
-  const [tripStage, setTripStage] = useState(
-    passedTrip?.status === 'in_progress'
-      ? 'in_progress'
-      : passedTrip?.status === 'arrived'
-      ? 'arrived'
-      : passedTrip?.status === 'completed'
-      ? 'completed'
-      : 'arriving'
-  );
+  const normalizeStage = (status) => {
+    if (['accepted', 'driver_arriving', 'arrived', 'in_progress', 'completed', 'cancelled'].includes(status)) {
+      return status;
+    }
+    return 'accepted';
+  };
+  const [tripStage, setTripStage] = useState(normalizeStage(passedTrip?.status));
   const [tripDurationSeconds, setTripDurationSeconds] = useState(120);
   const [updatingStage, setUpdatingStage] = useState(false);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState('');
   const [stageError, setStageError] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([
@@ -72,8 +72,12 @@ export const ActiveTripTracking = () => {
         .getMyTrips()
         .then((res) => {
           const list = res?.trips?.data || [];
-          if (list.length > 0) {
-            setTrip(list[0]);
+          const activeFirst =
+            list.find((t) => ['accepted', 'driver_arriving', 'arrived', 'in_progress'].includes(t.status)) ||
+            list[0];
+          if (activeFirst) {
+            setTrip(activeFirst);
+            setTripStage(normalizeStage(activeFirst.status));
           }
         })
         .catch(() => {});
@@ -109,10 +113,15 @@ export const ActiveTripTracking = () => {
     if (updatingStage) return;
     setStageError('');
 
-    let nextStage = 'arrived';
-    if (tripStage === 'arriving') nextStage = 'arrived';
+    // Strict sequential 7-state progression:
+    // accepted -> driver_arriving -> arrived -> in_progress -> completed
+    let nextStage = null;
+    if (tripStage === 'accepted') nextStage = 'driver_arriving';
+    else if (tripStage === 'driver_arriving') nextStage = 'arrived';
     else if (tripStage === 'arrived') nextStage = 'in_progress';
     else if (tripStage === 'in_progress') nextStage = 'completed';
+
+    if (!nextStage) return;
 
     if (tripDetails.dbId) {
       setUpdatingStage(true);
@@ -127,6 +136,22 @@ export const ActiveTripTracking = () => {
       }
     } else {
       setTripStage(nextStage);
+    }
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!tripDetails.dbId || confirmingPayment) return;
+    setConfirmingPayment(true);
+    setStageError('');
+    setPaymentMessage('');
+    try {
+      const res = await api.confirmTripPayment(tripDetails.dbId, 'paid');
+      if (res?.trip) setTrip(res.trip);
+      setPaymentMessage(res?.message || 'تم تأكيد استلام المبلغ وتسجيل الدفع بنجاح');
+    } catch (err) {
+      setStageError(err.message || 'تعذر تأكيد استلام الدفع');
+    } finally {
+      setConfirmingPayment(false);
     }
   };
 
@@ -154,9 +179,10 @@ export const ActiveTripTracking = () => {
                 خريطة تتبع الرحلة النشطة
               </span>
               <span className="text-xs px-2.5 py-0.5 rounded-full font-cairo font-bold bg-rahaa-emerald-bg text-rahaa-emerald">
-                {tripStage === 'arriving' && 'في الطريق لنقطة الالتقاط'}
+                {tripStage === 'accepted' && 'تم قبول الطلب — جاهز للتحرك'}
+                {tripStage === 'driver_arriving' && 'في الطريق لنقطة الالتقاط'}
                 {tripStage === 'arrived' && 'تم الوصول لموقع الراكب'}
-                {tripStage === 'in_progress' && 'في الطريق للوجهة'}
+                {tripStage === 'in_progress' && 'الرحلة جارية نحو الوجهة'}
                 {tripStage === 'completed' && 'اكتملت الرحلة'}
               </span>
             </div>
@@ -197,10 +223,11 @@ export const ActiveTripTracking = () => {
                   التوجيه الملاحي المباشر (Google Maps)
                 </span>
                 <span className="text-sm font-cairo font-bold text-white truncate block">
-                  {tripStage === 'arriving' && `التوجه إلى: ${tripDetails.pickup}`}
+                  {tripStage === 'accepted' && `جاهز للتوجه إلى: ${tripDetails.pickup}`}
+                  {tripStage === 'driver_arriving' && `مسار الوصول إلى الراكب: ${tripDetails.pickup}`}
                   {tripStage === 'arrived' && 'أنت في موقع الالتقاط، بانتظار الراكب'}
-                  {tripStage === 'in_progress' && `التوجه إلى: ${tripDetails.dropoff}`}
-                  {tripStage === 'completed' && 'وصلت إلى الوجهة المحددة بنجاح'}
+                  {tripStage === 'in_progress' && `مسار الرحلة إلى الوجهة: ${tripDetails.dropoff}`}
+                  {tripStage === 'completed' && 'وصلت إلى الوجهة المحددة وتم إيقاف التتبع'}
                 </span>
               </div>
             </div>
@@ -211,8 +238,8 @@ export const ActiveTripTracking = () => {
 
           <RahahGoogleMap
             heightClass="h-[320px] sm:h-[380px]"
-            showRoute={true}
-            showGpsButton={true}
+            showRoute={tripStage !== 'completed' && tripStage !== 'cancelled'}
+            showGpsButton={tripStage !== 'completed'}
             pickup={{
               lat: Number(trip?.pickup_lat || 15.3547),
               lng: Number(trip?.pickup_lng || 44.2066),
@@ -223,14 +250,28 @@ export const ActiveTripTracking = () => {
               lng: Number(trip?.dropoff_lng || 44.191),
               label: `الوجهة: ${tripDetails.dropoff}`,
             }}
-            driver={{
-              lat: driverCoords.lat,
-              lng: driverCoords.lng,
-              label: 'موقعك الحالي (الكابتن)',
-            }}
+            driver={
+              tripStage !== 'completed'
+                ? {
+                    lat: driverCoords.lat,
+                    lng: driverCoords.lng,
+                    label: 'موقعك الحالي (الكابتن)',
+                  }
+                : null
+            }
+            routeOrigin={
+              ['accepted', 'driver_arriving', 'arrived'].includes(tripStage)
+                ? { lat: driverCoords.lat, lng: driverCoords.lng }
+                : { lat: Number(trip?.pickup_lat || 15.3547), lng: Number(trip?.pickup_lng || 44.2066) }
+            }
+            routeDestination={
+              ['accepted', 'driver_arriving', 'arrived'].includes(tripStage)
+                ? { lat: Number(trip?.pickup_lat || 15.3547), lng: Number(trip?.pickup_lng || 44.2066) }
+                : { lat: Number(trip?.dropoff_lat || 15.3694), lng: Number(trip?.dropoff_lng || 44.191) }
+            }
             onGpsLocated={({ lat, lng }) => {
               setDriverCoords({ lat, lng });
-              if (trip?.id) {
+              if (trip?.id && tripStage !== 'completed') {
                 api.updateTripDriverLocation(trip.id, lat, lng).catch(() => {});
               }
             }}
@@ -369,11 +410,52 @@ export const ActiveTripTracking = () => {
                   <CheckCircle2 className="w-7 h-7" />
                 </div>
                 <h4 className="font-cairo font-bold text-base text-rahaa-navy">
-                  تم إكمال المشوار وتحصيل الأجرة بنجاح!
+                  تم إنهاء الرحلة بنجاح
                 </h4>
-                <p className="text-xs text-rahaa-text-muted font-tajawal">
-                  تمت إضافة {tripDetails.totalFare} إلى سجل أرباحك في راحة.
-                </p>
+                <div className="p-3 rounded-xl bg-rahaa-bg border border-rahaa-border text-xs space-y-1 text-right">
+                  <div className="flex justify-between">
+                    <span className="text-rahaa-text-subtle">المبلغ النهائي:</span>
+                    <span className="font-cairo font-black text-rahaa-navy">
+                      {Number(trip?.final_fare ?? trip?.fare ?? 0).toLocaleString()} ر.ي
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-rahaa-text-subtle">طريقة الدفع:</span>
+                    <span className="font-bold text-rahaa-navy">{tripDetails.paymentMethod}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-rahaa-text-subtle">حالة الدفع:</span>
+                    <span className={`font-bold ${trip?.payment_status === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      {trip?.payment_status === 'paid'
+                        ? 'مدفوعة ومؤكدة ✓'
+                        : trip?.payment_status === 'failed'
+                        ? 'فشل الدفع'
+                        : 'بانتظار تأكيد الدفع'}
+                    </span>
+                  </div>
+                </div>
+
+                {paymentMessage && (
+                  <p className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl p-2.5">
+                    {paymentMessage}
+                  </p>
+                )}
+
+                {trip?.payment_status !== 'paid' && tripDetails.dbId && (
+                  <button
+                    type="button"
+                    onClick={handleConfirmPayment}
+                    disabled={confirmingPayment}
+                    className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-cairo font-bold text-xs rounded-xl shadow-sm transition-all disabled:opacity-60"
+                  >
+                    {confirmingPayment
+                      ? 'جاري تسجيل الدفع...'
+                      : trip?.payment_method === 'cash'
+                      ? `تأكيد استلام المبلغ النقدي (${Number(trip?.final_fare ?? trip?.fare ?? 0).toLocaleString()} ر.ي)`
+                      : 'تأكيد استلام الدفع'}
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => navigate('/driver')}
@@ -393,11 +475,13 @@ export const ActiveTripTracking = () => {
                 <span>
                   {updatingStage
                     ? 'جاري التحديث...'
-                    : tripStage === 'arriving'
+                    : tripStage === 'accepted'
+                    ? 'في الطريق إلى الراكب'
+                    : tripStage === 'driver_arriving'
                     ? 'تأكيد الوصول لموقع الراكب'
                     : tripStage === 'arrived'
-                    ? 'بدء المشوار الآن'
-                    : `إنهاء المشوار وتحصيل ${tripDetails.totalFare}`}
+                    ? 'بدء الرحلة الآن'
+                    : `إنهاء الرحلة (${tripDetails.totalFare})`}
                 </span>
               </button>
             )}

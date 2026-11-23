@@ -778,12 +778,16 @@ class MultiTransportController extends Controller
     {
         $user = $request->user();
 
-        // Active Trip (Taxi)
+        // Active Trip (Taxi) — strictly sanitized for driver location privacy
         $trip = Trip::where('passenger_id', $user->id)
-            ->whereIn('status', ['requested', 'accepted', 'arrived', 'in_progress'])
+            ->active()
             ->with(['driver:id,name,phone', 'driver.driverProfile'])
             ->latest()
             ->first();
+
+        if ($trip) {
+            $trip->sanitizeForViewer($user);
+        }
 
         // Active Cargo / Motorcycle
         $cargo = CargoRequest::where('sender_id', $user->id)

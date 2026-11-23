@@ -111,15 +111,54 @@ export const HomeLiveTrackingMap = () => {
       case 'requested':
         return { text: 'جاري البحث عن كابتن...', color: 'bg-amber-500 text-white' };
       case 'accepted':
-        return { text: 'تم قبول الرحلة - الكابتن في الطريق', color: 'bg-blue-600 text-white' };
+        return { text: 'تم قبول الرحلة - الكابتن يستعد للتحرك', color: 'bg-blue-600 text-white' };
+      case 'driver_arriving':
+        return { text: 'الكابتن في طريقه إليك', color: 'bg-sky-600 text-white' };
       case 'arrived':
         return { text: 'وصل الكابتن إلى موقعك', color: 'bg-emerald-600 text-white' };
       case 'in_progress':
-        return { text: 'الرحلة جارية الآن', color: 'bg-indigo-600 text-white' };
+        return { text: 'الرحلة جارية الآن نحو الوجهة', color: 'bg-indigo-600 text-white' };
       default:
         return { text: 'رحلة نشطة', color: 'bg-rahaa-primary text-white' };
     }
   };
+
+  const isDriverTrackable =
+    activeTrip &&
+    ['accepted', 'driver_arriving', 'arrived', 'in_progress'].includes(activeTrip.status) &&
+    activeTrip.driver_id &&
+    (activeTrip.driver_lat || activeTrip.driver?.driver_profile?.current_lat);
+
+  const isApproachPhase =
+    activeTrip && ['accepted', 'driver_arriving', 'arrived'].includes(activeTrip.status);
+
+  const driverCoordObj = isDriverTrackable
+    ? {
+        lat: Number(activeTrip.driver_lat || activeTrip.driver?.driver_profile?.current_lat),
+        lng: Number(activeTrip.driver_lng || activeTrip.driver?.driver_profile?.current_lng),
+        label: `الكابتن: ${activeTrip.driver?.name || 'كابتن راحة'}`,
+      }
+    : null;
+
+  const pickupCoordObj = activeTrip
+    ? {
+        lat: Number(activeTrip.pickup_lat || userCoords.lat),
+        lng: Number(activeTrip.pickup_lng || userCoords.lng),
+        label: `موقع الانطلاق: ${activeTrip.pickup_name || userLocation}`,
+      }
+    : {
+        lat: userCoords.lat,
+        lng: userCoords.lng,
+        label: `موقعي الحالي: ${userLocation}`,
+      };
+
+  const dropoffCoordObj = activeTrip
+    ? {
+        lat: Number(activeTrip.dropoff_lat || 15.3694),
+        lng: Number(activeTrip.dropoff_lng || 44.191),
+        label: `الوجهة: ${activeTrip.dropoff_name || ''}`,
+      }
+    : null;
 
   return (
     <section className="w-full font-tajawal animate-fadeIn" dir="rtl">
@@ -195,45 +234,18 @@ export const HomeLiveTrackingMap = () => {
           </div>
         )}
 
-        {/* Official Google Maps Canvas Area */}
+        {/* Official Google Maps Canvas Area (Driver Privacy Enforced: No drivers shown before acceptance) */}
         <div className="relative w-full">
           <RahahGoogleMap
             heightClass="h-[300px] sm:h-[340px] md:h-[370px]"
             className="rounded-none border-0"
-            showRoute={Boolean(activeTrip)}
+            showRoute={Boolean(activeTrip && activeTrip.status !== 'requested')}
             showGpsButton={true}
-            pickup={
-              activeTrip
-                ? {
-                    lat: Number(activeTrip.pickup_lat || userCoords.lat),
-                    lng: Number(activeTrip.pickup_lng || userCoords.lng),
-                    label: `موقع الانطلاق: ${activeTrip.pickup_name || userLocation}`,
-                  }
-                : {
-                    lat: userCoords.lat,
-                    lng: userCoords.lng,
-                    label: `موقعي الحالي: ${userLocation}`,
-                  }
-            }
-            dropoff={
-              activeTrip
-                ? {
-                    lat: Number(activeTrip.dropoff_lat || 15.3694),
-                    lng: Number(activeTrip.dropoff_lng || 44.191),
-                    label: `الوجهة: ${activeTrip.dropoff_name || ''}`,
-                  }
-                : null
-            }
-            driver={
-              activeTrip?.driver_id &&
-              (activeTrip.driver_lat || activeTrip.driver?.driver_profile?.current_lat)
-                ? {
-                    lat: Number(activeTrip.driver_lat || activeTrip.driver?.driver_profile?.current_lat),
-                    lng: Number(activeTrip.driver_lng || activeTrip.driver?.driver_profile?.current_lng),
-                    label: `الكابتن: ${activeTrip.driver?.name || 'كابتن راحة'}`,
-                  }
-                : null
-            }
+            pickup={pickupCoordObj}
+            dropoff={dropoffCoordObj}
+            driver={driverCoordObj}
+            routeOrigin={isApproachPhase && driverCoordObj ? driverCoordObj : pickupCoordObj}
+            routeDestination={isApproachPhase && driverCoordObj ? pickupCoordObj : dropoffCoordObj}
             onGpsLocated={({ lat, lng, address }) => {
               setUserCoords({ lat, lng });
               setUserLocation(address || 'موقعي الحالي المباشر - أمانة العاصمة');
