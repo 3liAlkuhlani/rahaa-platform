@@ -139,3 +139,4 @@ SQL);
         // Non-destructive down migration for safety
     }
 };
+
